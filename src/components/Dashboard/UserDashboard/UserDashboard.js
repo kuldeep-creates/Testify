@@ -1,0 +1,429 @@
+import React, { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { signOut } from 'firebase/auth';
+import { auth, db } from '../../../firebase';
+import { collection, getDocs, query, where, doc, getDoc } from 'firebase/firestore';
+import { useFirebase } from '../../../context/FirebaseContext';
+import './UserDashboard.css';
+
+// Candidate Tests Component
+function CandidateTests() {
+  const navigate = useNavigate();
+  const [tests, setTests] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+
+  useEffect(() => {
+    const loadTests = async () => {
+      setLoading(true);
+      setError('');
+      try {
+        const testsRef = collection(db, 'tests');
+        // Remove the status filter to show all tests
+        const q = testsRef;
+        const snap = await getDocs(q);
+        
+        // Filter out tests that are not active or published
+        const now = new Date();
+        const testsData = snap.docs
+          .map(d => ({ id: d.id, ...d.data() }))
+          .filter(test => {
+            // Include test if it's active or doesn't have a status field (for backward compatibility)
+            const isActive = !test.status || test.status === 'active';
+            
+            // Check if test has an end date and if it's still valid
+            const hasValidEndDate = !test.endDate || 
+                                  (test.endDate?.toDate && test.endDate.toDate() > now) ||
+                                  (test.endDate?.seconds && new Date(test.endDate.seconds * 1000) > now);
+            
+            return isActive && hasValidEndDate;
+          });
+        
+        // Deduplicate tests by title and domain
+        const testMap = new Map();
+        testsData.forEach(test => {
+          const key = `${test.title}_${test.domain}`;
+          const existingTest = testMap.get(key);
+          
+          if (!existingTest) {
+            testMap.set(key, test);
+          } else {
+            // If test has an end date, keep the one with the latest end date
+            // Otherwise, keep the most recently created one
+            const existingEndDate = existingTest.endDate?.toDate?.() || existingTest.endDate?.seconds ? 
+              new Date(existingTest.endDate.seconds * 1000) : null;
+            const currentEndDate = test.endDate?.toDate?.() || test.endDate?.seconds ? 
+              new Date(test.endDate.seconds * 1000) : null;
+              
+            if (existingEndDate && currentEndDate) {
+              if (currentEndDate > existingEndDate) {
+                testMap.set(key, test);
+              }
+            } else {
+              // Fall back to creation date if end dates are not available
+              const existingTime = existingTest.createdAt?.toDate?.()?.getTime() || 0;
+              const currentTime = test.createdAt?.toDate?.()?.getTime() || 0;
+              
+              if (currentTime > existingTime) {
+                testMap.set(key, test);
+              }
+            }
+          }
+        });
+        
+        const uniqueTests = Array.from(testMap.values());
+        setTests(uniqueTests);
+      } catch (e) {
+        console.log('[Candidate:loadTests:error]', e.code, e.message);
+        setError(e.message || 'Failed to load tests');
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadTests();
+  }, []);
+
+  const filteredTests = tests.filter(t => {
+    const q = searchQuery.toLowerCase();
+    return (
+      t.title?.toLowerCase().includes(q) ||
+      t.domain?.toLowerCase().includes(q) ||
+      t.description?.toLowerCase().includes(q)
+    );
+  });
+
+  if (loading) return <div className="loading">Loading tests...</div>;
+  if (error) return <div className="error">Error: {error}</div>;
+
+  return (
+    <div className="candidate-tests">
+      <div className="search-container">
+        <input
+          type="text"
+          placeholder="Search tests..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="search-input"
+        />
+      </div>
+      
+      <div className="tests-grid">
+        {filteredTests.map(test => (
+          <div key={test.id} className="test-card">
+            <div className="test-header">
+              <h3 className="test-title">{test.title}</h3>
+              <span className="badge badge-neutral">{test.domain}</span>
+            </div>
+            <p className="test-description">{test.description || 'No description available'}</p>
+            <div className="test-meta">
+              <div className="meta-item">
+                <span className="meta-icon">⏱️</span>
+                <span>Duration: {test.duration || '60 minutes'}</span>
+              </div>
+              <div className="meta-item">
+                <span className="meta-icon">📝</span>
+                <span>Total Marks: {test.totalMarks || 'N/A'}</span>
+              </div>
+              <div className="meta-item">
+                <span className="meta-icon">📅</span>
+                <span>Created: {test.createdAt?.toDate?.()?.toLocaleDateString() || 'Unknown'}</span>
+              </div>
+            </div>
+            
+            <div className="test-actions">
+              <button 
+                className="btn btn-primary test-start-btn"
+                onClick={() => {
+                    navigate(`/test/${test.id}`);
+                }}
+              >
+                <span className="btn-icon">🚀</span>
+                Start Test
+              </button>
+              
+              {test.password && (
+                <div className="test-password-hint">
+                  <span className="password-icon">🔒</span>
+                  <span>Password required</span>
+                </div>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+      
+      {filteredTests.length === 0 && (
+        <div className="no-tests">
+          {searchQuery ? (
+            <>
+              <div className="no-tests-icon">🔍</div>
+              <h3>No Tests Found</h3>
+              <p>No tests match your search "{searchQuery}"</p>
+              <button 
+                className="btn btn-outline"
+                onClick={() => setSearchQuery('')}
+              >
+                Clear Search
+              </button>
+            </>
+          ) : (
+            <>
+              <div className="no-tests-icon">📚</div>
+              <h3>No Tests Available</h3>
+              <p>There are no active tests at the moment. Check back later!</p>
+              <button 
+                className="btn btn-primary"
+                onClick={() => window.location.reload()}
+              >
+                Refresh Tests
+              </button>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Candidate Results Component
+function CandidateResults() {
+  const [results, setResults] = useState([]);
+  const [filteredResults, setFilteredResults] = useState([]);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const { user, userDoc } = useFirebase();
+
+  // Filter results based on search term
+  useEffect(() => {
+    if (!searchTerm.trim()) {
+      setFilteredResults(results);
+    } else {
+      const searchLower = searchTerm.toLowerCase();
+      const filtered = results.filter(result => 
+        (result.testTitle || result.title || '').toLowerCase().includes(searchLower)
+      );
+      setFilteredResults(filtered);
+    }
+  }, [searchTerm, results]);
+
+  useEffect(() => {
+    const loadResults = async () => {
+      if (!user?.uid) return;
+      
+      setLoading(true);
+      setError('');
+      try {
+        const resultsRef = collection(db, 'results');
+        // Only fetch results with status 'submitted' or 'evaluated'
+        const q = query(
+          resultsRef, 
+          where('candidateId', '==', user.uid),
+          where('status', 'in', ['submitted', 'evaluated'])
+        );
+        const snap = await getDocs(q);
+        // Process results and fetch test details for each
+        const resultsWithTestData = await Promise.all(snap.docs.map(async (d) => {
+          const resultData = { id: d.id, ...d.data() };
+          
+          // Fetch test data to get the title and totalMarks
+          try {
+            const testDoc = await getDoc(doc(db, 'tests', resultData.testId));
+            if (testDoc.exists()) {
+              const testData = testDoc.data();
+              resultData.testTitle = testData.title;
+              // If totalMarks is not in the result, try to get it from the test
+              if (resultData.totalMarks === undefined) {
+                // Try to calculate totalMarks from questions if not directly available
+                if (testData.questions?.length > 0) {
+                  resultData.totalMarks = testData.questions.reduce((sum, q) => {
+                    return sum + (q.marks || 1);
+                  }, 0);
+                } else if (testData.totalMarks) {
+                  resultData.totalMarks = testData.totalMarks;
+                }
+              }
+            }
+          } catch (error) {
+            console.error('Error fetching test data:', error);
+          }
+          
+          return resultData;
+        }));
+        
+        // Sort by submission date (newest first)
+        resultsWithTestData.sort((a, b) => {
+          const timeA = a.submittedAt?.toDate?.() ? a.submittedAt.toDate().getTime() : 0;
+          const timeB = b.submittedAt?.toDate?.() ? b.submittedAt.toDate().getTime() : 0;
+          return timeB - timeA;
+        });
+        
+        setResults(resultsWithTestData);
+        setFilteredResults(resultsWithTestData); // Initialize filtered results
+      } catch (e) {
+        console.log('[Candidate:loadResults:error]', e.code, e.message);
+        setError(e.message || 'Failed to load results');
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    loadResults();
+  }, [user?.uid]);
+
+  if (loading) return <div className="loading">Loading results...</div>;
+  if (error) return <div className="error">Error: {error}</div>;
+
+  return (
+    <div className="candidate-results">
+      <div className="results-header">
+        <h2>Your Test Results</h2>
+        
+        <div className="search-container">
+          <input
+            type="text"
+            placeholder="Search by test title..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="search-input"
+          />
+        </div>
+      </div>
+      
+      {filteredResults.length === 0 ? (
+        <div className="no-results">
+          <div className="no-results-icon">📊</div>
+          <h3>No Test Results Yet</h3>
+          <p>Complete some tests to see your results here.</p>
+          <button 
+            className="btn btn-primary"
+            onClick={() => window.location.reload()}
+          >
+            Refresh Results
+          </button>
+        </div>
+      ) : (
+        <div className="results-grid">
+          {filteredResults.map(result => (
+            <div key={result.id} className="result-card">
+              <h3 className="result-title">
+                {result.testTitle || result.title || 'Test'}
+              </h3>
+              <div className="candidate-info">
+                <span className="candidate-name">
+                  Candidate: {userDoc?.name || user?.displayName || 'Unknown'}
+                </span>
+              </div>
+              <div className="result-score-container">
+                <div className="score-display">
+                  <span className="score-value">
+                    {result.score !== undefined ? result.score : '--'}
+                    <span className="score-divider">/</span>
+                    <span className="score-total">
+                      {result.totalMarks !== undefined ? result.totalMarks : '--'}
+                    </span>
+                  </span>
+                </div>
+                <div className="score-label">
+                  {result.status === 'evaluated' ? 'Score' : 'Submitted'}
+                </div>
+              </div>
+              {result.submittedAt && (
+                <div className="submission-info">
+                  <span className="submission-date">
+                    Submitted: {result.submittedAt.toDate?.()?.toLocaleDateString() || 'Unknown'}
+                  </span>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Placeholder for future candidate features
+function CandidateProfile() {
+  return (
+    <div className="candidate-profile">
+      <h2>Profile Settings</h2>
+      <p>Profile management will be available soon.</p>
+    </div>
+  );
+}
+
+function UserDashboard() {
+  const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState('tests');
+  const { user, userDoc, loading: contextLoading } = useFirebase();
+  const role = (userDoc?.role || 'candidate').toLowerCase();
+
+  const themeClass = 'theme-candidate';
+
+  // Set default tab for candidates
+  useEffect(() => {
+    setActiveTab('tests');
+  }, []);
+
+  const badgeTone = 'candidate';
+  
+  const tabs = useMemo(() => [
+    { label: 'Available Tests', value: 'tests' },
+    { label: 'My Results', value: 'results' },
+  ], []);
+
+  const handleSignOut = async () => {
+    try {
+      await signOut(auth);
+      navigate('/');
+    } catch (error) {
+      console.error('Sign out error:', error);
+    }
+  };
+
+  if (contextLoading) {
+    return <div className="loading">Loading...</div>;
+  }
+
+  return (
+    <div className={`user-dashboard ${themeClass}`}>
+      <div className="dashboard-header">
+        <div className="header-content">
+          <div className="user-info">
+            <h1>Welcome, {userDoc?.name || user?.displayName || 'Candidate'}</h1>
+            
+          </div>
+          <button className="btn btn-outline" onClick={handleSignOut}>
+            Sign Out
+          </button>
+        </div>
+      </div>
+
+      <div className="dashboard-content">
+        <div className="dashboard-nav">
+          <div className="tc-tabs">
+            {tabs.map((t) => (
+              <button
+                key={t.value}
+                className={`tc-tab ${activeTab === t.value ? 'is-active' : ''}`}
+                onClick={() => setActiveTab(t.value)}
+                data-tab={t.value}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="dashboard-main">
+          {activeTab === 'tests' && <CandidateTests />}
+          {activeTab === 'results' && <CandidateResults />}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default UserDashboard;
