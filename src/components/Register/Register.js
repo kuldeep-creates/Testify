@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { auth, db } from '../../firebase';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { setDoc, doc, serverTimestamp } from 'firebase/firestore';
+import '../../components/Loading/Loading.css';
 import './Register.css';
 
 function Register() {
@@ -193,8 +194,8 @@ function Register() {
                 </div>
               </div>
 
-              <button
-                className="register-button"
+              <button 
+                className={`btn btn-primary ${loading ? 'btn-loading' : ''}`}
                 type="submit"
                 disabled={loading}
               >

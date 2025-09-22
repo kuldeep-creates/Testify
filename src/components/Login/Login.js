@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { auth } from '../../firebase';
+import '../../components/Loading/Loading.css';
 import './Login.css';
 
 function Login() {
@@ -123,8 +124,8 @@ function Login() {
 
 
                 {/* Login Button */}
-                <button
-                  className="login-button"
+                <button 
+                  className={`btn btn-primary ${loading ? 'btn-loading' : ''}`}
                   type="submit"
                   disabled={loading}
                 >

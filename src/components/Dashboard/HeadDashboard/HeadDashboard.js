@@ -1,10 +1,11 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { signOut } from 'firebase/auth';
 import { auth, db } from '../../../firebase';
 import { collection, getDocs, query, where, doc, setDoc, serverTimestamp, addDoc, updateDoc, deleteDoc, getDoc } from 'firebase/firestore';
 import { fetchTestWithQuestions } from '../../../services/firestore';
 import { useFirebase } from '../../../context/FirebaseContext';
+import Loading from '../../Loading/Loading';
 import './HeadDashboard.css';
 
 // Head Create Test Component
@@ -420,7 +421,7 @@ function HeadCreateTest() {
                   Next →
                 </button>
                 <button 
-                  className="btn btn-primary"
+                  className={`btn btn-primary btn-lg ${loading ? 'btn-loading' : ''}`}
                   onClick={handleSubmit} 
                   disabled={questions.length === 0 || loading}
                 >
@@ -576,7 +577,9 @@ function HeadManageTests() {
       {error && <div className="alert alert-error">{error}</div>}
       
       {loading ? (
-        <div className="loading">Loading tests...</div>
+        <div className="loading-tests">
+          <Loading message="Loading tests" subtext="Fetching your created tests" variant="inline" size="large" />
+        </div>
       ) : tests.length === 0 ? (
         <div className="no-tests">No tests created yet.</div>
       ) : (
@@ -603,7 +606,7 @@ function HeadManageTests() {
               
               <div className="test-actions">
                 <button 
-                  className="btn btn-outline btn-sm"
+                  className={`btn btn-outline btn-sm ${editLoading ? 'btn-loading' : ''}`}
                   onClick={() => startEditTest(test)}
                   disabled={editLoading}
                 >
@@ -722,15 +725,6 @@ function HeadManageTests() {
                     </button>
                   </div>
                   
-                  {/* DEBUG: Show all questions state */}
-                  <div style={{background: '#f0f0f0', padding: '10px', margin: '10px 0', fontSize: '11px', maxHeight: '100px', overflow: 'auto'}}>
-                    <strong>DEBUG - All Questions State:</strong>
-                    {editQuestions.map((q, idx) => (
-                      <div key={idx} style={{marginBottom: '5px'}}>
-                        Q{idx + 1}: imageUrl = "{q.imageUrl || 'empty'}" | text = "{q.questionText?.substring(0, 20) || 'empty'}..."
-                      </div>
-                    ))}
-                  </div>
 
                   {editQuestions.length > 0 && (
                     <>
@@ -772,27 +766,14 @@ function HeadManageTests() {
                           <div className="form-group">
                             <label>Question Image (Optional)</label>
                             <div className="image-upload-section">
-                              <div style={{marginBottom: '10px', fontSize: '12px', color: '#666'}}>
-                                DEBUG: Current imageUrl = "{editQuestions[editQIndex]?.imageUrl || 'undefined'}"
-                              </div>
                               <input
                                 type="url"
                                 value={editQuestions[editQIndex]?.imageUrl || ''}
                                 onChange={(e) => {
-                                  console.log('=== IMAGE URL CHANGE EVENT ===');
-                                  console.log('New value:', e.target.value);
-                                  console.log('Current editQIndex:', editQIndex);
-                                  console.log('Current editQuestions length:', editQuestions.length);
-                                  console.log('Current question before update:', editQuestions[editQIndex]);
-                                  
                                   const updated = [...editQuestions];
                                   updated[editQIndex].imageUrl = e.target.value;
-                                  
-                                  console.log('Updated question after change:', updated[editQIndex]);
-                                  console.log('All updated questions:', updated);
-                                  
                                   setEditQuestions(updated);
-                                  console.log('=== END IMAGE URL CHANGE ===');
+                                  console.log('Image URL updated:', e.target.value);
                                 }}
                                 className="form-input"
                                 placeholder="Enter image URL (e.g., https://example.com/image.jpg)"
@@ -942,7 +923,7 @@ function HeadManageTests() {
                       ← Back to Test Info
                     </button>
                     <button 
-                      className="btn btn-primary"
+                      className={`btn btn-primary ${editLoading ? 'btn-loading' : ''}`}
                       onClick={async () => {
                         try {
                           setEditLoading(true);
@@ -966,7 +947,6 @@ function HeadManageTests() {
                           }
                           
                           // Add updated questions to subcollection
-                          console.log('Saving editQuestions:', editQuestions);
                           for (const question of editQuestions) {
                             const questionDoc = {
                               questionId: question.id.toString(),
@@ -978,8 +958,9 @@ function HeadManageTests() {
                               imageUrl: question.imageUrl || ''
                             };
                             
-                            console.log('Saving question document:', questionDoc);
-                            console.log('Question imageUrl being saved:', questionDoc.imageUrl);
+                            if (questionDoc.imageUrl) {
+                              console.log('Saving question with image:', questionDoc.imageUrl);
+                            }
                             await addDoc(questionsRef, questionDoc);
                           }
                           
@@ -1179,14 +1160,26 @@ function HeadResults() {
 
   const handleMarkSubmission = async (resultId, newScore) => {
     try {
+      const maxMarks = selectedTest.totalMarks || 100;
+      const percentage = maxMarks > 0 ? Math.round((newScore / maxMarks) * 100) : 0;
+      
       await updateDoc(doc(db, 'results', resultId), {
-        score: newScore,
+        totalMarksAwarded: newScore,
+        maxPossibleMarks: maxMarks,
+        score: percentage,
         status: 'evaluated',
-        evaluatedAt: serverTimestamp()
+        evaluatedAt: serverTimestamp(),
+        evaluatedBy: 'head'
       });
       setSubmissions(prev => prev.map(r => 
         r.id === resultId 
-          ? { ...r, score: newScore, status: 'evaluated' }
+          ? { 
+              ...r, 
+              totalMarksAwarded: newScore, 
+              maxPossibleMarks: maxMarks,
+              score: percentage, 
+              status: 'evaluated' 
+            }
           : r
       ));
     } catch (e) {
@@ -1209,7 +1202,9 @@ function HeadResults() {
         {error && <div className="alert alert-error">{error}</div>}
         
         {loading ? (
-          <div className="loading">Loading tests...</div>
+          <div className="loading-results">
+            <Loading message="Loading test results" subtext="Gathering candidate submissions and performance data" variant="inline" size="large" />
+          </div>
         ) : tests.length === 0 ? (
           <div className="no-tests">No tests created yet.</div>
         ) : (
@@ -1245,13 +1240,41 @@ function HeadResults() {
     <div className="head-results">
       <div className="results-header">
         <h3>Submissions for: {selectedTest.title}</h3>
-        <button className="btn btn-outline" onClick={() => setSelectedTest(null)}>← Back to Tests</button>
+        <div className="results-actions">
+          <button 
+            className="btn btn-outline btn-sm" 
+            onClick={() => loadSubmissions(selectedTest.id)}
+            disabled={loading}
+          >
+            🔄 Refresh
+          </button>
+          <button className="btn btn-outline" onClick={() => setSelectedTest(null)}>← Back to Tests</button>
+        </div>
+      </div>
+      
+      <div className="results-summary">
+        <div className="summary-stats">
+          <span className="stat-item">
+            <strong>Total Submissions:</strong> {submissions.length}
+          </span>
+          <span className="stat-item">
+            <strong>Evaluated:</strong> {submissions.filter(s => s.status === 'evaluated').length}
+          </span>
+          <span className="stat-item">
+            <strong>Pending:</strong> {submissions.filter(s => s.status !== 'evaluated').length}
+          </span>
+          <span className="stat-item">
+            <strong>Test Total:</strong> {selectedTest.totalMarks || 100} marks
+          </span>
+        </div>
       </div>
       
       {error && <div className="alert alert-error">{error}</div>}
       
       {loading ? (
-        <div className="loading">Loading submissions...</div>
+        <div className="loading-results">
+          <Loading message="Loading detailed submissions" subtext="Processing candidate answers and calculating scores" variant="inline" size="large" />
+        </div>
       ) : submissions.length === 0 ? (
         <div className="no-submissions">No submissions for this test yet.</div>
       ) : (
@@ -1270,9 +1293,20 @@ function HeadResults() {
                     <div className="candidate-name">
                       {displayName}
                     </div>
-                    <div className="submission-date">
-                      Submitted: {result.submittedAt?.toDate?.()?.toLocaleString() || 'Unknown'}
+                    <div className="candidate-id">
+                      ID: {result.candidateId || 'N/A'}
                     </div>
+                    <div className="submission-date">
+                      Submitted: {result.submittedAt?.toDate?.()?.toLocaleString() || 'Not submitted'}
+                    </div>
+                    <div className="submission-duration">
+                      Duration: {result.timeTaken ? `${Math.round(result.timeTaken / 60)} minutes` : 'N/A'}
+                    </div>
+                    {result.evaluatedAt && (
+                      <div className="evaluation-date">
+                        Evaluated: {result.evaluatedAt?.toDate?.()?.toLocaleString()}
+                      </div>
+                    )}
                   </div>
                   <span className={`badge ${result.status === 'evaluated' ? 'badge-success' : 'badge-neutral'}`}>
                     {result.status || 'submitted'}
@@ -1284,16 +1318,32 @@ function HeadResults() {
                   <input
                     type="number"
                     min="0"
-                    max="100"
-                    value={result.score || 0}
+                    max={selectedTest.totalMarks || 100}
+                    step="0.5"
+                    value={result.totalMarksAwarded !== undefined ? result.totalMarksAwarded : result.score || 0}
                     onChange={(e) => {
-                      const newScore = parseInt(e.target.value) || 0;
+                      const newScore = parseFloat(e.target.value) || 0;
                       handleMarkSubmission(result.id, newScore);
                     }}
                   />
-                  <span>/100</span>
+                  <span>/{selectedTest.totalMarks || 100} marks</span>
+                  {result.totalMarksAwarded !== undefined && (
+                    <div className="percentage-display">
+                      ({Math.round((result.totalMarksAwarded / (selectedTest.totalMarks || 100)) * 100)}%)
+                    </div>
+                  )}
+                  <div className="submission-stats">
+                    <div className="questions-attempted">
+                      Questions: {result.answers ? Object.keys(result.answers).length : 0} answered
+                    </div>
+                    {result.evaluatedBy && (
+                      <div className="evaluated-by">
+                        Evaluated by: {result.evaluatedBy}
+                      </div>
+                    )}
+                  </div>
                   <div className="view-details">
-                    Click to view details →
+                    Click to view detailed answers →
                   </div>
                 </div>
               </div>
@@ -1326,7 +1376,7 @@ function HeadDashboard() {
   };
 
   if (contextLoading) {
-    return <div className="loading">Loading...</div>;
+    return <Loading message="Loading head dashboard" subtext="Please wait while we prepare your workspace" />;
   }
 
   return (

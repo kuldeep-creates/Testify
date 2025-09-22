@@ -3,19 +3,21 @@ import { useFirebase } from '../../context/FirebaseContext';
 import AdminDashboard from './AdminDashboard/AdminDashboard';
 import HeadDashboard from './HeadDashboard/HeadDashboard';
 import UserDashboard from './UserDashboard/UserDashboard';
+import Blocked from '../Blocked/Blocked';
+import Loading from '../Loading/Loading';
 import './Dashboard.css';
 
 function Dashboard() {
-  const { userDoc, loading } = useFirebase();
+  const { userDoc, blocked, loading } = useFirebase();
   const role = (userDoc?.role || 'candidate').toLowerCase();
 
   if (loading) {
-    return (
-      <div className="dashboard-loading">
-        <div className="loading-spinner"></div>
-        <p>Loading dashboard...</p>
-      </div>
-    );
+    return <Loading message="Loading dashboard" subtext="Please wait while we prepare your workspace" />;
+  }
+
+  // Check if user is blocked first
+  if (blocked) {
+    return <Blocked />;
   }
 
   // Route to appropriate dashboard based on user role

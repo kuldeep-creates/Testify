@@ -9,13 +9,11 @@ export async function fetchTestWithQuestions(testId) {
   const qSnap = await getDocs(collection(testRef, 'questions'));
   const questions = qSnap.docs.map(d => {
     const questionData = d.data();
-    console.log('Raw question data from Firestore:', questionData);
     return { 
       id: questionData.questionId || d.id, // Use questionId from data, fallback to doc id
       ...questionData 
     };
   });
-  console.log('All questions fetched:', questions);
   return { id: testSnap.id, ...testSnap.data(), questions };
 }
 

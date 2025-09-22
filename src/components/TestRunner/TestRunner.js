@@ -1,10 +1,24 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { addDoc, collection, doc, getDoc } from 'firebase/firestore';
+import { fetchTestWithQuestions, logPaste, logTabSwitch } from '../../services/firestore';
 import { useFirebase } from '../../context/FirebaseContext';
-import { fetchTestWithQuestions } from '../../services/firestore';
-import { db, monitorConnection } from '../../firebase';
+import { addDoc, collection, serverTimestamp, doc, getDoc } from 'firebase/firestore';
+import { db } from '../../firebase';
+import Loading from '../Loading/Loading';
 import './TestRunner.css';
+
+// Network monitoring function
+const monitorConnection = async () => {
+  try {
+    const response = await fetch('/favicon.ico', { 
+      method: 'HEAD',
+      cache: 'no-cache'
+    });
+    return response.ok;
+  } catch {
+    return navigator.onLine;
+  }
+};
 
 function TestRunner() {
   const { testId } = useParams();
@@ -402,11 +416,7 @@ function TestRunner() {
   }
 
   if (isLoading) {
-    return (
-      <div className="test-container">
-        <div className="loading">Loading test...</div>
-      </div>
-    );
+    return <Loading message="Loading test" subtext="Preparing your test environment" />;
   }
   if (errMsg) return <div className="test-container"><div className="test-card">Error: {errMsg}</div></div>;
   if (!testData) return <div className="test-container"><div className="test-card">Test not found</div></div>;

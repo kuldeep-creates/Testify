@@ -140,7 +140,7 @@ export function useFirebase() {
   return useContext(FirebaseContext);
 }
 
-// Temporary function to manually set user role - call this from browser console
+// Temporary functions to manually set user role/status - call these from browser console
 window.setUserRole = async (role) => {
   try {
     const user = auth.currentUser;
@@ -154,5 +154,21 @@ window.setUserRole = async (role) => {
     console.log(`Role updated to: ${role}. Please refresh the page.`);
   } catch (error) {
     console.error('Error updating role:', error);
+  }
+};
+
+window.blockUser = async (blocked = true) => {
+  try {
+    const user = auth.currentUser;
+    if (!user) {
+      console.log('No user logged in');
+      return;
+    }
+    
+    const ref = doc(db, 'user', user.uid);
+    await updateDoc(ref, { blocked: blocked });
+    console.log(`User ${blocked ? 'blocked' : 'unblocked'}. Please refresh the page.`);
+  } catch (error) {
+    console.error('Error updating block status:', error);
   }
 };

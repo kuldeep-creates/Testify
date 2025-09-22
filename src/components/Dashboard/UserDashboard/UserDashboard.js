@@ -1,9 +1,10 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { signOut } from 'firebase/auth';
 import { auth, db } from '../../../firebase';
-import { collection, getDocs, query, where, doc, getDoc } from 'firebase/firestore';
+import { collection, getDocs, query, where, orderBy, addDoc, serverTimestamp, getDoc, doc } from 'firebase/firestore';
 import { useFirebase } from '../../../context/FirebaseContext';
+import Loading from '../../Loading/Loading';
 import './UserDashboard.css';
 
 // Candidate Tests Component
@@ -93,7 +94,11 @@ function CandidateTests() {
     );
   });
 
-  if (loading) return <div className="loading">Loading tests...</div>;
+  if (loading) return (
+    <div className="loading-tests">
+      <Loading message="Loading tests" subtext="Fetching available tests for you" variant="inline" size="large" />
+    </div>
+  );
   if (error) return <div className="error">Error: {error}</div>;
 
   return (
@@ -272,7 +277,11 @@ function CandidateResults() {
     loadResults();
   }, [user?.uid]);
 
-  if (loading) return <div className="loading">Loading results...</div>;
+  if (loading) return (
+    <div className="loading-results">
+      <Loading message="Loading your results" subtext="Analyzing your test performance and scores" variant="inline" size="large" />
+    </div>
+  );
   if (error) return <div className="error">Error: {error}</div>;
 
   return (
@@ -384,7 +393,7 @@ function UserDashboard() {
   };
 
   if (contextLoading) {
-    return <div className="loading">Loading...</div>;
+    return <Loading message="Loading dashboard" subtext="Please wait while we prepare your workspace" />;
   }
 
   return (

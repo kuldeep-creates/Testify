@@ -1,23 +1,10 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { signOut } from 'firebase/auth';
 import { auth, db } from '../../../firebase';
-import { 
-  collection, 
-  onSnapshot, 
-  query, 
-  updateDoc, 
-  doc, 
-  serverTimestamp, 
-  addDoc, 
-  deleteDoc, 
-  getDocs, 
-  where,
-  orderBy,
-  limit,
-  getDoc
-} from 'firebase/firestore';
+import { collection, getDocs, onSnapshot, doc, updateDoc, deleteDoc, query, where, orderBy, serverTimestamp, getDoc } from 'firebase/firestore';
 import { useFirebase } from '../../../context/FirebaseContext';
+import Loading from '../../Loading/Loading';
 import './AdminDashboard.css';
 
 // 1. Overview Section Component
@@ -79,7 +66,11 @@ function AdminOverview() {
     return date.toLocaleString();
   };
 
-  if (loading) return <div className="loading">Loading overview...</div>;
+  if (loading) return (
+    <div className="loading-tests">
+      <Loading message="Loading overview" subtext="Gathering system statistics and data" variant="inline" size="large" />
+    </div>
+  );
 
   return (
     <div className="admin-overview">
@@ -97,13 +88,7 @@ function AdminOverview() {
             <p className="stat-number">{stats.activeTests}</p>
           </div>
         </div>
-        <div className="stat-card">
-          <div className="stat-icon">✅</div>
-          <div className="stat-content">
-            <h3>Completed Tests</h3>
-            <p className="stat-number">{stats.completedTests}</p>
-          </div>
-        </div>
+        
       </div>
 
       {/* All Tests Section */}
@@ -285,7 +270,11 @@ function AdminUsers() {
     setCurrentPage(1);
   }, [searchQuery, filterRole, filterStatus]);
 
-  if (loading) return <div className="loading">Loading users...</div>;
+  if (loading) return (
+    <div className="loading-tests">
+      <Loading message="Loading users" subtext="Fetching user accounts and permissions" variant="inline" size="large" />
+    </div>
+  );
   
   if (error) {
     return (
@@ -390,7 +379,7 @@ function AdminUsers() {
                     <td>
                       <div className="user-info">
                         <span className="user-name">{user.name || 'N/A'}</span>
-                        <span className="user-id">ID: {user.id.slice(0, 8)}...</span>
+                        
                       </div>
                     </td>
                     <td>{user.email}</td>
@@ -691,7 +680,11 @@ function AdminTests() {
     return date.toLocaleString();
   };
 
-  if (loading) return <div className="loading">Loading tests...</div>;
+  if (loading) return (
+    <div className="loading-tests">
+      <Loading message="Loading tests" subtext="Fetching all tests and submissions" variant="inline" size="large" />
+    </div>
+  );
   if (error) return <div className="error">Error: {error}</div>;
 
   if (selectedTest && !showSubmissions) {
@@ -829,17 +822,33 @@ function TestPaperView({ test, onBack }) {
   useEffect(() => {
     const loadQuestions = async () => {
       try {
-        const questionsQuery = query(
-          collection(db, 'questions'),
-          where('testId', '==', test.id)
-        );
-        const snapshot = await getDocs(questionsQuery);
-        const questionsData = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        }));
+        // Fetch questions from the subcollection under the test
+        const questionsRef = collection(db, 'tests', test.id, 'questions');
+        const snapshot = await getDocs(questionsRef);
+        const questionsData = snapshot.docs.map(doc => {
+          const data = doc.data();
+          return {
+            id: data.questionId || doc.id,
+            questionText: data.questionText,
+            questionType: data.questionType,
+            options: data.options || [],
+            correctAnswer: data.correctAnswer,
+            marks: data.marks || 1,
+            imageUrl: data.imageUrl || '',
+            ...data
+          };
+        });
+        
+        // Sort questions by questionId if available
+        questionsData.sort((a, b) => {
+          const aId = parseInt(a.id) || 0;
+          const bId = parseInt(b.id) || 0;
+          return aId - bId;
+        });
+        
         setQuestions(questionsData);
         setLoading(false);
+        console.log('Loaded questions for test paper:', questionsData);
       } catch (err) {
         console.error('Failed to load questions:', err);
         setLoading(false);
@@ -849,7 +858,11 @@ function TestPaperView({ test, onBack }) {
     loadQuestions();
   }, [test.id]);
 
-  if (loading) return <div className="loading">Loading test paper...</div>;
+  if (loading) return (
+    <div className="loading-tests">
+      <Loading message="Loading test paper" subtext="Fetching questions and test structure" variant="inline" size="large" />
+    </div>
+  );
 
   return (
     <div className="test-paper-view">
@@ -870,29 +883,81 @@ function TestPaperView({ test, onBack }) {
           <div key={question.id} className="question-card">
             <div className="question-header">
               <span className="question-number">Q{index + 1}</span>
-              <span className="question-marks">{question.marks || 1} marks</span>
+              <div className="question-meta">
+                <span className="question-type">{question.questionType?.toUpperCase() || 'MCQ'}</span>
+                <span className="question-marks">{question.marks || 1} marks</span>
+              </div>
             </div>
+            
             <div className="question-content">
-              <p className="question-text">{question.text}</p>
-              {question.type === 'mcq' && question.options && (
-                <div className="question-options">
-                  {question.options.map((option, optIndex) => (
-                    <div key={optIndex} className="option">
-                      <span className="option-label">{String.fromCharCode(65 + optIndex)}.</span>
-                      <span className="option-text">{option}</span>
-                    </div>
-                  ))}
-                  <div className="correct-answer">
-                    <strong>Correct Answer: {question.correctAnswer}</strong>
-                  </div>
+              <div className="question-text">
+                {question.questionText || question.text || 'No question text'}
+              </div>
+              
+              {/* Question Image */}
+              {question.imageUrl && (
+                <div className="question-image">
+                  <img 
+                    src={question.imageUrl} 
+                    alt="Question illustration"
+                    style={{
+                      maxWidth: '100%',
+                      maxHeight: '300px',
+                      borderRadius: '8px',
+                      border: '1px solid #e5e7eb',
+                      marginTop: '1rem'
+                    }}
+                    onError={(e) => {
+                      e.target.style.display = 'none';
+                    }}
+                  />
                 </div>
               )}
-              {question.type === 'coding' && (
-                <div className="coding-question">
-                  <div className="expected-solution">
-                    <strong>Expected Solution:</strong>
-                    <pre>{question.expectedAnswer}</pre>
-                  </div>
+              
+              {/* MCQ Options */}
+              {question.questionType === 'mcq' && question.options && question.options.length > 0 && (
+                <div className="question-options">
+                  <h4>Options:</h4>
+                  {question.options.map((option, optIndex) => (
+                    <div 
+                      key={optIndex} 
+                      className={`option ${option === question.correctAnswer ? 'correct-option' : ''}`}
+                    >
+                      <span className="option-label">{String.fromCharCode(65 + optIndex)}.</span>
+                      <span className="option-text">{option}</span>
+                      {option === question.correctAnswer && (
+                        <span className="correct-indicator">✓ Correct</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+              
+              {/* Long Answer */}
+              {question.questionType === 'long' && (
+                <div className="long-answer-info">
+                  <p><strong>Type:</strong> Long Answer Question</p>
+                  <p><strong>Expected:</strong> Detailed written response</p>
+                </div>
+              )}
+              
+              {/* Code Question */}
+              {question.questionType === 'code' && (
+                <div className="code-question-info">
+                  <p><strong>Type:</strong> Programming Question</p>
+                  <p><strong>Expected:</strong> Code implementation</p>
+                  {question.expectedAnswer && (
+                    <div className="expected-solution">
+                      <strong>Sample Solution:</strong>
+                      <pre style={{
+                        background: '#f8f9fa',
+                        padding: '1rem',
+                        borderRadius: '4px',
+                        overflow: 'auto',
+                        marginTop: '0.5rem'
+                      }}>{question.expectedAnswer}</pre>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -912,6 +977,7 @@ function TestPaperView({ test, onBack }) {
 // Test Submissions View Component
 function TestSubmissionsView({ test, submissions, onBack }) {
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedSubmission, setSelectedSubmission] = useState(null);
 
   const filteredSubmissions = submissions.filter(submission =>
     submission.candidateId?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -923,6 +989,17 @@ function TestSubmissionsView({ test, submissions, onBack }) {
     const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
     return date.toLocaleString();
   };
+
+  // If viewing individual submission
+  if (selectedSubmission) {
+    return (
+      <SubmissionDetailView 
+        submission={selectedSubmission}
+        test={test}
+        onBack={() => setSelectedSubmission(null)}
+      />
+    );
+  }
 
   return (
     <div className="test-submissions-view">
@@ -966,7 +1043,9 @@ function TestSubmissionsView({ test, submissions, onBack }) {
                 <td>{formatDateTime(submission.submittedAt)}</td>
                 <td>
                   <span className="score">
-                    {submission.score !== undefined ? `${submission.score}/100` : 'Not graded'}
+                    {submission.totalMarksAwarded !== undefined ? 
+                      `${submission.totalMarksAwarded}/${submission.maxPossibleMarks || 'N/A'}` : 
+                      submission.score !== undefined ? `${submission.score}%` : 'Not graded'}
                   </span>
                 </td>
                 <td>
@@ -975,7 +1054,11 @@ function TestSubmissionsView({ test, submissions, onBack }) {
                   </span>
                 </td>
                 <td>
-                  <button className="btn btn-sm btn-outline" title="View Details">
+                  <button 
+                    className="btn btn-sm btn-outline" 
+                    title="View Details"
+                    onClick={() => setSelectedSubmission(submission)}
+                  >
                     👁️ View
                   </button>
                 </td>
@@ -990,6 +1073,368 @@ function TestSubmissionsView({ test, submissions, onBack }) {
           <div className="no-submissions-icon">📊</div>
           <h3>No Submissions Found</h3>
           <p>No submissions match your search criteria</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Submission Detail View Component
+function SubmissionDetailView({ submission, test, onBack }) {
+  const [questions, setQuestions] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [marksDistribution, setMarksDistribution] = useState({});
+  const [totalMarks, setTotalMarks] = useState(0);
+  const [saving, setSaving] = useState(false);
+  const [showMarksPanel, setShowMarksPanel] = useState(false);
+
+  useEffect(() => {
+    const loadSubmissionDetails = async () => {
+      try {
+        // Fetch questions from the test
+        const questionsRef = collection(db, 'tests', test.id, 'questions');
+        const questionsSnapshot = await getDocs(questionsRef);
+        const questionsData = questionsSnapshot.docs.map(doc => {
+          const data = doc.data();
+          return {
+            id: data.questionId || doc.id,
+            questionText: data.questionText,
+            questionType: data.questionType,
+            options: data.options || [],
+            correctAnswer: data.correctAnswer,
+            marks: data.marks || 1,
+            imageUrl: data.imageUrl || '',
+            ...data
+          };
+        });
+
+        // Sort questions by ID
+        questionsData.sort((a, b) => {
+          const aId = parseInt(a.id) || 0;
+          const bId = parseInt(b.id) || 0;
+          return aId - bId;
+        });
+
+        // Add candidate answers to questions
+        const questionsWithAnswers = questionsData.map(question => {
+          const candidateAnswer = submission.answers?.[question.id] || '';
+          return {
+            ...question,
+            candidateAnswer,
+            isCorrect: question.questionType === 'mcq' ? 
+              candidateAnswer === question.correctAnswer : null
+          };
+        });
+
+        // Initialize marks distribution
+        const initialMarks = {};
+        let calculatedTotal = 0;
+        
+        questionsWithAnswers.forEach(question => {
+          // Check if marks already exist in submission
+          const existingMarks = submission.questionMarks?.[question.id];
+          if (existingMarks !== undefined) {
+            initialMarks[question.id] = existingMarks;
+            calculatedTotal += existingMarks;
+          } else {
+            // Auto-assign marks for MCQ questions
+            if (question.questionType === 'mcq' && question.isCorrect) {
+              initialMarks[question.id] = question.marks || 1;
+              calculatedTotal += question.marks || 1;
+            } else {
+              initialMarks[question.id] = 0;
+            }
+          }
+        });
+
+        setQuestions(questionsWithAnswers);
+        setMarksDistribution(initialMarks);
+        setTotalMarks(calculatedTotal);
+        setLoading(false);
+      } catch (error) {
+        console.error('Error loading submission details:', error);
+        setLoading(false);
+      }
+    };
+
+    loadSubmissionDetails();
+  }, [submission, test.id]);
+
+  const formatDateTime = (timestamp) => {
+    if (!timestamp) return 'N/A';
+    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+    return date.toLocaleString();
+  };
+
+  const handleMarksChange = (questionId, marks) => {
+    const numericMarks = Math.max(0, parseFloat(marks) || 0);
+    const maxMarks = questions.find(q => q.id === questionId)?.marks || 1;
+    const finalMarks = Math.min(numericMarks, maxMarks);
+    
+    setMarksDistribution(prev => ({
+      ...prev,
+      [questionId]: finalMarks
+    }));
+    
+    // Recalculate total
+    const newTotal = Object.values({
+      ...marksDistribution,
+      [questionId]: finalMarks
+    }).reduce((sum, mark) => sum + (mark || 0), 0);
+    setTotalMarks(newTotal);
+  };
+
+  const saveMarksDistribution = async () => {
+    setSaving(true);
+    try {
+      // Calculate percentage score
+      const maxPossibleMarks = questions.reduce((sum, q) => sum + (q.marks || 1), 0);
+      const percentage = maxPossibleMarks > 0 ? Math.round((totalMarks / maxPossibleMarks) * 100) : 0;
+
+      // Update submission in database
+      const submissionRef = doc(db, 'results', submission.id);
+      await updateDoc(submissionRef, {
+        questionMarks: marksDistribution,
+        totalMarksAwarded: totalMarks,
+        maxPossibleMarks: maxPossibleMarks,
+        score: percentage,
+        status: 'evaluated',
+        evaluatedAt: serverTimestamp(),
+        evaluatedBy: 'admin'
+      });
+
+      alert('Marks saved successfully!');
+      setShowMarksPanel(false);
+    } catch (error) {
+      console.error('Error saving marks:', error);
+      alert('Failed to save marks. Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const autoAssignMarks = () => {
+    const autoMarks = {};
+    let autoTotal = 0;
+    
+    questions.forEach(question => {
+      if (question.questionType === 'mcq' && question.isCorrect) {
+        autoMarks[question.id] = question.marks || 1;
+        autoTotal += question.marks || 1;
+      } else {
+        autoMarks[question.id] = 0;
+      }
+    });
+    
+    setMarksDistribution(autoMarks);
+    setTotalMarks(autoTotal);
+  };
+
+  if (loading) {
+    return (
+      <div className="loading-tests">
+        <Loading message="Loading submission details" subtext="Fetching candidate answers and question data" variant="inline" size="large" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="submission-detail-view">
+      <div className="submission-header">
+        <button className="btn btn-outline" onClick={onBack}>← Back to Submissions</button>
+        <div className="submission-info">
+          <h2>Submission Details</h2>
+          <div className="submission-meta">
+            <div className="meta-item">
+              <strong>Candidate:</strong> {submission.candidateName || 'Unknown'}
+            </div>
+            <div className="meta-item">
+              <strong>Test:</strong> {test.title}
+            </div>
+            <div className="meta-item">
+              <strong>Submitted:</strong> {formatDateTime(submission.submittedAt)}
+            </div>
+            <div className="meta-item">
+              <strong>Score:</strong> {submission.totalMarksAwarded !== undefined ? 
+                `${submission.totalMarksAwarded}/${submission.maxPossibleMarks || 'N/A'} marks` : 
+                submission.score !== undefined ? `${submission.score}%` : 'Not graded'}
+            </div>
+            <div className="meta-item">
+              <strong>Status:</strong> 
+              <span className={`badge ${submission.status === 'evaluated' ? 'badge-success' : 'badge-warning'}`}>
+                {submission.status || 'submitted'}
+              </span>
+            </div>
+          </div>
+        </div>
+        <div className="marks-panel-toggle">
+          <button 
+            className={`btn ${showMarksPanel ? 'btn-primary' : 'btn-outline'}`}
+            onClick={() => setShowMarksPanel(!showMarksPanel)}
+          >
+            📊 Marks Distribution ({totalMarks} marks)
+          </button>
+        </div>
+      </div>
+
+      {/* Marks Distribution Panel */}
+      {showMarksPanel && (
+        <div className="marks-distribution-panel">
+          <div className="marks-panel-header">
+            <h3>Marks Distribution</h3>
+            <div className="marks-summary">
+              <span>Total: {totalMarks} / {questions.reduce((sum, q) => sum + (q.marks || 1), 0)} marks</span>
+              <span>Percentage: {questions.reduce((sum, q) => sum + (q.marks || 1), 0) > 0 ? 
+                Math.round((totalMarks / questions.reduce((sum, q) => sum + (q.marks || 1), 0)) * 100) : 0}%</span>
+            </div>
+          </div>
+          
+          <div className="marks-controls">
+            <button className="btn btn-outline btn-sm" onClick={autoAssignMarks}>
+              🤖 Auto-assign MCQ Marks
+            </button>
+            <button 
+              className={`btn btn-primary ${saving ? 'btn-loading' : ''}`}
+              onClick={saveMarksDistribution}
+              disabled={saving}
+            >
+              {saving ? 'Saving...' : '💾 Save Marks'}
+            </button>
+          </div>
+
+          <div className="marks-grid">
+            {questions.map((question, index) => (
+              <div key={question.id} className="marks-item">
+                <div className="marks-question-info">
+                  <span className="question-label">Q{index + 1}</span>
+                  <span className="question-type-badge">{question.questionType?.toUpperCase()}</span>
+                  <span className="max-marks">Max: {question.marks || 1}</span>
+                </div>
+                <div className="marks-input-section">
+                  <input
+                    type="number"
+                    min="0"
+                    max={question.marks || 1}
+                    step="0.5"
+                    value={marksDistribution[question.id] || 0}
+                    onChange={(e) => handleMarksChange(question.id, e.target.value)}
+                    className="marks-input"
+                  />
+                  <span className="marks-label">marks</span>
+                  {question.questionType === 'mcq' && (
+                    <span className={`auto-mark-indicator ${question.isCorrect ? 'correct' : 'incorrect'}`}>
+                      {question.isCorrect ? '✓' : '✗'}
+                    </span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="submission-questions">
+        {questions.map((question, index) => (
+          <div key={question.id} className="submission-question-card">
+            <div className="question-header">
+              <span className="question-number">Q{index + 1}</span>
+              <div className="question-meta">
+                <span className="question-type">{question.questionType?.toUpperCase() || 'MCQ'}</span>
+                <span className="question-marks">{question.marks || 1} marks</span>
+                <span className="awarded-marks">
+                  Awarded: {marksDistribution[question.id] || 0}/{question.marks || 1}
+                </span>
+                {question.questionType === 'mcq' && question.isCorrect !== null && (
+                  <span className={`answer-status ${question.isCorrect ? 'correct' : 'incorrect'}`}>
+                    {question.isCorrect ? '✓ Correct' : '✗ Incorrect'}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <div className="question-content">
+              <div className="question-text">
+                {question.questionText || 'No question text'}
+              </div>
+
+              {/* Question Image */}
+              {question.imageUrl && (
+                <div className="question-image">
+                  <img 
+                    src={question.imageUrl} 
+                    alt="Question illustration"
+                    style={{
+                      maxWidth: '100%',
+                      maxHeight: '300px',
+                      borderRadius: '8px',
+                      border: '1px solid #e5e7eb',
+                      marginTop: '1rem'
+                    }}
+                    onError={(e) => {
+                      e.target.style.display = 'none';
+                    }}
+                  />
+                </div>
+              )}
+
+              {/* MCQ Options and Answer */}
+              {question.questionType === 'mcq' && (
+                <div className="mcq-section">
+                  <div className="question-options">
+                    <h4>Options:</h4>
+                    {question.options.map((option, optIndex) => (
+                      <div 
+                        key={optIndex} 
+                        className={`option ${
+                          option === question.correctAnswer ? 'correct-option' : ''
+                        } ${
+                          option === question.candidateAnswer ? 'selected-option' : ''
+                        }`}
+                      >
+                        <span className="option-label">{String.fromCharCode(65 + optIndex)}.</span>
+                        <span className="option-text">{option}</span>
+                        {option === question.correctAnswer && (
+                          <span className="correct-indicator">✓ Correct Answer</span>
+                        )}
+                        {option === question.candidateAnswer && option !== question.correctAnswer && (
+                          <span className="selected-indicator">← Candidate's Answer</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Long Answer or Code Answer */}
+              {(question.questionType === 'long' || question.questionType === 'code') && (
+                <div className="text-answer-section">
+                  <h4>Candidate's Answer:</h4>
+                  <div className="candidate-answer">
+                    {question.candidateAnswer ? (
+                      <pre style={{
+                        background: '#f8f9fa',
+                        padding: '1rem',
+                        borderRadius: '8px',
+                        border: '1px solid #e5e7eb',
+                        whiteSpace: 'pre-wrap',
+                        fontFamily: question.questionType === 'code' ? 'monospace' : 'inherit'
+                      }}>
+                        {question.candidateAnswer}
+                      </pre>
+                    ) : (
+                      <div className="no-answer">No answer provided</div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {questions.length === 0 && (
+        <div className="no-questions">
+          <p>No questions found for this submission</p>
         </div>
       )}
     </div>
@@ -1125,7 +1570,11 @@ function AdminMonitoring() {
     return getSuspiciousActivityCount(participant) > 5;
   };
 
-  if (loading) return <div className="loading">Loading monitoring data...</div>;
+  if (loading) return (
+    <div className="loading-tests">
+      <Loading message="Loading monitoring data" subtext="Analyzing test activities and security logs" variant="inline" size="large" />
+    </div>
+  );
   if (error) return <div className="error">Error: {error}</div>;
 
   // Participant Detail View
@@ -1448,7 +1897,7 @@ function AdminDashboard() {
   };
 
   if (contextLoading) {
-    return <div className="loading">Loading...</div>;
+    return <Loading message="Loading admin dashboard" subtext="Please wait while we prepare your admin workspace" />;
   }
 
   return (
