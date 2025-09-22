@@ -5,6 +5,8 @@ import { auth, db } from '../../../firebase';
 import { collection, getDocs, onSnapshot, doc, updateDoc, deleteDoc, query, where, orderBy, serverTimestamp, getDoc } from 'firebase/firestore';
 import { useFirebase } from '../../../context/FirebaseContext';
 import Loading from '../../Loading/Loading';
+import Icon from '../../icons/Icon';
+import Leaderboard from '../../Leaderboard/Leaderboard';
 import './AdminDashboard.css';
 
 // 1. Overview Section Component
@@ -82,7 +84,7 @@ function AdminOverview() {
       {/* Stats Cards */}
       <div className="overview-stats">
         <div className="stat-card">
-          <div className="stat-icon">📝</div>
+          <div className="stat-icon"><Icon name="leaderboard" size="xl" /></div>
           <div className="stat-content">
             <h3>Active Tests</h3>
             <p className="stat-number">{stats.activeTests}</p>
@@ -489,8 +491,8 @@ function RoleSelector({ user, onRoleChange, canEdit }) {
           <option value="admin">Admin</option>
         </select>
         <div className="role-actions">
-          <button className="btn btn-sm btn-primary" onClick={handleRoleSubmit}>✓</button>
-          <button className="btn btn-sm btn-outline" onClick={() => setIsEditing(false)}>✗</button>
+          <button className="btn btn-sm btn-primary" onClick={handleRoleSubmit}><Icon name="success" size="small" /></button>
+          <button className="btn btn-sm btn-outline" onClick={() => setIsEditing(false)}><Icon name="fire" size="small" /></button>
         </div>
       </div>
     );
@@ -546,8 +548,8 @@ function DomainSelector({ user, onRoleChange, canEdit }) {
           ))}
         </select>
         <div className="domain-actions">
-          <button className="btn btn-sm btn-primary" onClick={handleDomainSubmit}>✓</button>
-          <button className="btn btn-sm btn-outline" onClick={() => setIsEditing(false)}>✗</button>
+          <button className="btn btn-sm btn-primary" onClick={handleDomainSubmit}><Icon name="success" size="small" /></button>
+          <button className="btn btn-sm btn-outline" onClick={() => setIsEditing(false)}><Icon name="fire" size="small" /></button>
         </div>
       </div>
     );
@@ -663,6 +665,53 @@ function AdminTests() {
     setSelectedTest(test);
     setShowSubmissions(true);
     loadSubmissions(test.id);
+  };
+
+  const deleteTest = async (test) => {
+    const confirmDelete = window.confirm(
+      `Are you sure you want to delete the test "${test.title}"?\n\n` +
+      `This action will permanently delete:\n` +
+      `• The test and all its questions\n` +
+      `• All submissions and results for this test\n` +
+      `• This action cannot be undone!`
+    );
+
+    if (!confirmDelete) return;
+
+    try {
+      setLoading(true);
+      
+      // Delete all submissions/results for this test
+      const resultsQuery = query(
+        collection(db, 'results'),
+        where('testId', '==', test.id)
+      );
+      const resultsSnapshot = await getDocs(resultsQuery);
+      const deleteResultsPromises = resultsSnapshot.docs.map(doc => 
+        deleteDoc(doc.ref)
+      );
+      await Promise.all(deleteResultsPromises);
+      
+      // Delete all questions in the test subcollection
+      const questionsQuery = collection(db, 'tests', test.id, 'questions');
+      const questionsSnapshot = await getDocs(questionsQuery);
+      const deleteQuestionsPromises = questionsSnapshot.docs.map(doc => 
+        deleteDoc(doc.ref)
+      );
+      await Promise.all(deleteQuestionsPromises);
+      
+      // Delete the test document itself
+      await deleteDoc(doc(db, 'tests', test.id));
+      
+      // Show success message
+      alert(`Test "${test.title}" has been successfully deleted.`);
+      
+    } catch (error) {
+      console.error('Error deleting test:', error);
+      alert(`Failed to delete test: ${error.message}`);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const filteredTests = tests.filter(test => {
@@ -786,14 +835,22 @@ function AdminTests() {
                       onClick={() => viewTestPaper(test)}
                       title="View Test Paper"
                     >
-                      📄 Paper
+                      <Icon name="paper" size="small" /> Paper
                     </button>
                     <button
                       className="btn btn-sm btn-outline"
                       onClick={() => viewSubmissions(test)}
                       title="View Submissions"
                     >
-                      📊 Submissions
+                      <Icon name="submissions" size="small" /> Submissions
+                    </button>
+                    <button
+                      className="btn btn-sm btn-danger"
+                      onClick={() => deleteTest(test)}
+                      title="Delete Test"
+                      disabled={loading}
+                    >
+                      <Icon name="fire" size="small" /> Delete
                     </button>
                   </div>
                 </td>
@@ -805,7 +862,7 @@ function AdminTests() {
 
       {filteredTests.length === 0 && (
         <div className="no-tests">
-          <div className="no-tests-icon">📝</div>
+          <div className="no-tests-icon"><Icon name="notebook" size="2xl" /></div>
           <h3>No Tests Found</h3>
           <p>No tests match your current filters</p>
         </div>
@@ -867,7 +924,9 @@ function TestPaperView({ test, onBack }) {
   return (
     <div className="test-paper-view">
       <div className="paper-header">
-        <button className="btn btn-outline" onClick={onBack}>← Back to Tests</button>
+        <button className="btn btn-outline" onClick={onBack}>
+          <Icon name="leaderboard" size="small" /> Back to Tests
+        </button>
         <div className="paper-info">
           <h2>{test.title}</h2>
           <div className="paper-meta">
@@ -926,7 +985,7 @@ function TestPaperView({ test, onBack }) {
                       <span className="option-label">{String.fromCharCode(65 + optIndex)}.</span>
                       <span className="option-text">{option}</span>
                       {option === question.correctAnswer && (
-                        <span className="correct-indicator">✓ Correct</span>
+                        <span className="correct-indicator"><Icon name="success" size="small" /> Correct</span>
                       )}
                     </div>
                   ))}
@@ -1004,7 +1063,9 @@ function TestSubmissionsView({ test, submissions, onBack }) {
   return (
     <div className="test-submissions-view">
       <div className="submissions-header">
-        <button className="btn btn-outline" onClick={onBack}>← Back to Tests</button>
+        <button className="btn btn-outline" onClick={onBack}>
+          <Icon name="leaderboard" size="small" /> Back to Tests
+        </button>
         <div className="submissions-info">
           <h2>Submissions: {test.title}</h2>
           <p>{submissions.length} total submissions</p>
@@ -1059,7 +1120,7 @@ function TestSubmissionsView({ test, submissions, onBack }) {
                     title="View Details"
                     onClick={() => setSelectedSubmission(submission)}
                   >
-                    👁️ View
+                    <Icon name="computer" size="small" /> View
                   </button>
                 </td>
               </tr>
@@ -1086,7 +1147,7 @@ function SubmissionDetailView({ submission, test, onBack }) {
   const [marksDistribution, setMarksDistribution] = useState({});
   const [totalMarks, setTotalMarks] = useState(0);
   const [saving, setSaving] = useState(false);
-  const [showMarksPanel, setShowMarksPanel] = useState(false);
+  const [showMarksPanel, setShowMarksPanel] = useState(true);
 
   useEffect(() => {
     const loadSubmissionDetails = async () => {
@@ -1137,13 +1198,8 @@ function SubmissionDetailView({ submission, test, onBack }) {
             initialMarks[question.id] = existingMarks;
             calculatedTotal += existingMarks;
           } else {
-            // Auto-assign marks for MCQ questions
-            if (question.questionType === 'mcq' && question.isCorrect) {
-              initialMarks[question.id] = question.marks || 1;
-              calculatedTotal += question.marks || 1;
-            } else {
-              initialMarks[question.id] = 0;
-            }
+            // Initialize all questions with 0 marks for manual grading
+            initialMarks[question.id] = 0;
           }
         });
 
@@ -1213,22 +1269,6 @@ function SubmissionDetailView({ submission, test, onBack }) {
     }
   };
 
-  const autoAssignMarks = () => {
-    const autoMarks = {};
-    let autoTotal = 0;
-    
-    questions.forEach(question => {
-      if (question.questionType === 'mcq' && question.isCorrect) {
-        autoMarks[question.id] = question.marks || 1;
-        autoTotal += question.marks || 1;
-      } else {
-        autoMarks[question.id] = 0;
-      }
-    });
-    
-    setMarksDistribution(autoMarks);
-    setTotalMarks(autoTotal);
-  };
 
   if (loading) {
     return (
@@ -1241,7 +1281,9 @@ function SubmissionDetailView({ submission, test, onBack }) {
   return (
     <div className="submission-detail-view">
       <div className="submission-header">
-        <button className="btn btn-outline" onClick={onBack}>← Back to Submissions</button>
+        <button className="btn btn-outline" onClick={onBack}>
+          <Icon name="submissions" size="small" /> Back to Submissions
+        </button>
         <div className="submission-info">
           <h2>Submission Details</h2>
           <div className="submission-meta">
@@ -1267,88 +1309,66 @@ function SubmissionDetailView({ submission, test, onBack }) {
             </div>
           </div>
         </div>
-        <div className="marks-panel-toggle">
-          <button 
-            className={`btn ${showMarksPanel ? 'btn-primary' : 'btn-outline'}`}
-            onClick={() => setShowMarksPanel(!showMarksPanel)}
-          >
-            📊 Marks Distribution ({totalMarks} marks)
-          </button>
-        </div>
-      </div>
-
-      {/* Marks Distribution Panel */}
-      {showMarksPanel && (
-        <div className="marks-distribution-panel">
-          <div className="marks-panel-header">
-            <h3>Marks Distribution</h3>
-            <div className="marks-summary">
-              <span>Total: {totalMarks} / {questions.reduce((sum, q) => sum + (q.marks || 1), 0)} marks</span>
-              <span>Percentage: {questions.reduce((sum, q) => sum + (q.marks || 1), 0) > 0 ? 
-                Math.round((totalMarks / questions.reduce((sum, q) => sum + (q.marks || 1), 0)) * 100) : 0}%</span>
-            </div>
+        <div className="marks-summary-header">
+          <div className="marks-total-display">
+            <span className="marks-total-label">Total Marks:</span>
+            <span className="marks-total-value">{totalMarks} / {questions.reduce((sum, q) => sum + (q.marks || 1), 0)}</span>
+            <span className="marks-percentage">({questions.reduce((sum, q) => sum + (q.marks || 1), 0) > 0 ? 
+              Math.round((totalMarks / questions.reduce((sum, q) => sum + (q.marks || 1), 0)) * 100) : 0}%)</span>
           </div>
-          
-          <div className="marks-controls">
-            <button className="btn btn-outline btn-sm" onClick={autoAssignMarks}>
-              🤖 Auto-assign MCQ Marks
-            </button>
+          <div className="marks-actions">
             <button 
               className={`btn btn-primary ${saving ? 'btn-loading' : ''}`}
               onClick={saveMarksDistribution}
               disabled={saving}
             >
-              {saving ? 'Saving...' : '💾 Save Marks'}
+              {saving ? 'Saving...' : <><Icon name="shield" size="small" /> Save All Marks</>}
             </button>
           </div>
-
-          <div className="marks-grid">
-            {questions.map((question, index) => (
-              <div key={question.id} className="marks-item">
-                <div className="marks-question-info">
-                  <span className="question-label">Q{index + 1}</span>
-                  <span className="question-type-badge">{question.questionType?.toUpperCase()}</span>
-                  <span className="max-marks">Max: {question.marks || 1}</span>
-                </div>
-                <div className="marks-input-section">
-                  <input
-                    type="number"
-                    min="0"
-                    max={question.marks || 1}
-                    step="0.5"
-                    value={marksDistribution[question.id] || 0}
-                    onChange={(e) => handleMarksChange(question.id, e.target.value)}
-                    className="marks-input"
-                  />
-                  <span className="marks-label">marks</span>
-                  {question.questionType === 'mcq' && (
-                    <span className={`auto-mark-indicator ${question.isCorrect ? 'correct' : 'incorrect'}`}>
-                      {question.isCorrect ? '✓' : '✗'}
-                    </span>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
         </div>
-      )}
+      </div>
+
 
       <div className="submission-questions">
         {questions.map((question, index) => (
           <div key={question.id} className="submission-question-card">
             <div className="question-header">
-              <span className="question-number">Q{index + 1}</span>
-              <div className="question-meta">
-                <span className="question-type">{question.questionType?.toUpperCase() || 'MCQ'}</span>
-                <span className="question-marks">{question.marks || 1} marks</span>
-                <span className="awarded-marks">
-                  Awarded: {marksDistribution[question.id] || 0}/{question.marks || 1}
-                </span>
-                {question.questionType === 'mcq' && question.isCorrect !== null && (
-                  <span className={`answer-status ${question.isCorrect ? 'correct' : 'incorrect'}`}>
-                    {question.isCorrect ? '✓ Correct' : '✗ Incorrect'}
-                  </span>
-                )}
+              <div className="question-title-section">
+                <span className="question-number">Q{index + 1}</span>
+                <div className="question-meta">
+                  <span className="question-type">{question.questionType?.toUpperCase() || 'MCQ'}</span>
+                  <span className="question-marks">Max: {question.marks || 1} marks</span>
+                  {question.questionType === 'mcq' && (
+                    <div className="mcq-answer-preview">
+                      <span className="candidate-choice">Choice: {question.candidateAnswer || 'None'}</span>
+                      <span className={`answer-status ${question.isCorrect ? 'correct' : 'incorrect'}`}>
+                        {question.isCorrect ? <><Icon name="success" size="small" /> Correct</> : <><Icon name="fire" size="small" /> Incorrect</>}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div className="marks-input-section">
+                <div className="marks-input-container">
+                  <label className="marks-label">Marks Awarded:</label>
+                  <div className="marks-input-wrapper">
+                    <input
+                      type="number"
+                      min="0"
+                      max={question.marks || 1}
+                      step="0.5"
+                      value={marksDistribution[question.id] || 0}
+                      onChange={(e) => handleMarksChange(question.id, e.target.value)}
+                      className="marks-input"
+                    />
+                    <span className="marks-max">/ {question.marks || 1}</span>
+                  </div>
+                  {question.questionType === 'mcq' && question.isCorrect !== null && (
+                    <span className={`mcq-result-indicator ${question.isCorrect ? 'correct' : 'incorrect'}`}>
+                      {question.isCorrect ? <><Icon name="success" size="small" /> Correct Answer</> : <><Icon name="fire" size="small" /> Wrong Answer</>}
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -1380,8 +1400,20 @@ function SubmissionDetailView({ submission, test, onBack }) {
               {/* MCQ Options and Answer */}
               {question.questionType === 'mcq' && (
                 <div className="mcq-section">
+                  <div className="candidate-answer-display">
+                    <h4>Candidate's Answer:</h4>
+                    <div className={`candidate-selected-answer ${question.isCorrect ? 'correct' : 'incorrect'}`}>
+                      <span className="selected-option-text">
+                        {question.candidateAnswer || 'No answer selected'}
+                      </span>
+                      <span className={`answer-result ${question.isCorrect ? 'correct' : 'incorrect'}`}>
+                        {question.isCorrect ? <><Icon name="success" size="small" /> Correct</> : <><Icon name="fire" size="small" /> Incorrect</>}
+                      </span>
+                    </div>
+                  </div>
+                  
                   <div className="question-options">
-                    <h4>Options:</h4>
+                    <h4>All Options:</h4>
                     {question.options.map((option, optIndex) => (
                       <div 
                         key={optIndex} 
@@ -1394,10 +1426,13 @@ function SubmissionDetailView({ submission, test, onBack }) {
                         <span className="option-label">{String.fromCharCode(65 + optIndex)}.</span>
                         <span className="option-text">{option}</span>
                         {option === question.correctAnswer && (
-                          <span className="correct-indicator">✓ Correct Answer</span>
+                          <span className="correct-indicator"><Icon name="success" size="small" /> Correct Answer</span>
                         )}
                         {option === question.candidateAnswer && option !== question.correctAnswer && (
-                          <span className="selected-indicator">← Candidate's Answer</span>
+                          <span className="selected-indicator">← Candidate Selected</span>
+                        )}
+                        {option === question.candidateAnswer && option === question.correctAnswer && (
+                          <span className="both-indicator">← Candidate Selected (Correct!)</span>
                         )}
                       </div>
                     ))}
@@ -1595,7 +1630,7 @@ function AdminMonitoring() {
       <div className="participants-monitoring">
         <div className="monitoring-header">
           <button className="btn btn-outline" onClick={() => setSelectedTest(null)}>
-            ← Back to Tests
+            <Icon name="leaderboard" size="small" /> Back to Tests
           </button>
           <div className="test-info">
             <h2>Monitoring: {selectedTest.title}</h2>
@@ -1658,7 +1693,7 @@ function AdminMonitoring() {
                       onClick={() => selectParticipant(participant)}
                       title="View Details"
                     >
-                      👁️ Details
+                      <Icon name="computer" size="small" /> Details
                     </button>
                   </td>
                 </tr>
@@ -1706,7 +1741,7 @@ function AdminMonitoring() {
               </div>
               <div className="monitoring-stats">
                 <span className="stat">
-                  <span className="stat-icon">👁️</span>
+                  <span className="stat-icon"><Icon name="computer" size="small" /></span>
                   <span>Click to monitor</span>
                 </span>
               </div>
@@ -1717,7 +1752,7 @@ function AdminMonitoring() {
 
       {tests.length === 0 && (
         <div className="no-tests">
-          <div className="no-tests-icon">📝</div>
+          <div className="no-tests-icon"><Icon name="notebook" size="2xl" /></div>
           <h3>No Tests Available</h3>
           <p>No tests available for monitoring</p>
         </div>
@@ -1744,7 +1779,7 @@ function ParticipantDetailView({ participant, test, monitoringData, onBack }) {
     <div className="participant-detail-view">
       <div className="detail-header">
         <button className="btn btn-outline" onClick={onBack}>
-          ← Back to Participants
+          <Icon name="user" size="small" /> Back to Participants
         </button>
         <div className="participant-info">
           <h2>Participant: {participant.candidateName || 'Unknown'}</h2>
@@ -1885,6 +1920,7 @@ function AdminDashboard() {
     { label: 'Users', value: 'users' },
     { label: 'Tests', value: 'tests' },
     { label: 'Monitoring', value: 'monitoring' },
+    { label: 'Leaderboard', value: 'leaderboard' }
   ], []);
 
   const handleSignOut = async () => {
@@ -1935,6 +1971,7 @@ function AdminDashboard() {
           {activeTab === 'users' && <AdminUsers />}
           {activeTab === 'tests' && <AdminTests />}
           {activeTab === 'monitoring' && <AdminMonitoring />}
+          {activeTab === 'leaderboard' && <Leaderboard />}
         </div>
       </div>
     </div>

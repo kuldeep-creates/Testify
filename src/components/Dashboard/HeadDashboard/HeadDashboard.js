@@ -2,10 +2,12 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { signOut } from 'firebase/auth';
 import { auth, db } from '../../../firebase';
-import { collection, getDocs, query, where, doc, setDoc, serverTimestamp, addDoc, updateDoc, deleteDoc, getDoc } from 'firebase/firestore';
+import { collection, getDocs, query, where, doc, setDoc, serverTimestamp, addDoc, updateDoc, deleteDoc, getDoc, onSnapshot } from 'firebase/firestore';
 import { fetchTestWithQuestions } from '../../../services/firestore';
 import { useFirebase } from '../../../context/FirebaseContext';
 import Loading from '../../Loading/Loading';
+import Icon from '../../icons/Icon';
+import Leaderboard from '../../Leaderboard/Leaderboard';
 import './HeadDashboard.css';
 
 // Head Create Test Component
@@ -14,7 +16,8 @@ function HeadCreateTest() {
   const [testData, setTestData] = useState({
     title: '',
     description: '',
-    duration: '30 min',
+    durationHours: 0,
+    durationMinutes: 30,
     domain: 'DSA',
     password: '',
     totalMarks: 0
@@ -25,6 +28,17 @@ function HeadCreateTest() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const { userDoc } = useFirebase();
+
+  // Helper function to format duration
+  const formatDuration = (hours, minutes) => {
+    if (hours === 0) {
+      return `${minutes} min`;
+    } else if (minutes === 0) {
+      return `${hours}h`;
+    } else {
+      return `${hours}h ${minutes}min`;
+    }
+  };
 
   // Set domain based on head's assigned domain
   useEffect(() => {
@@ -1001,6 +1015,7 @@ function HeadResults() {
   const [tests, setTests] = useState([]);
   const [selectedTest, setSelectedTest] = useState(null);
   const [submissions, setSubmissions] = useState([]);
+  const [selectedSubmission, setSelectedSubmission] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const { userDoc } = useFirebase();
@@ -1158,35 +1173,39 @@ function HeadResults() {
     }
   };
 
-  const handleMarkSubmission = async (resultId, newScore) => {
+  const handleMarkSubmission = async (submissionId, newScore) => {
     try {
-      const maxMarks = selectedTest.totalMarks || 100;
-      const percentage = maxMarks > 0 ? Math.round((newScore / maxMarks) * 100) : 0;
-      
-      await updateDoc(doc(db, 'results', resultId), {
+      const submissionRef = doc(db, 'results', submissionId);
+      await updateDoc(submissionRef, {
         totalMarksAwarded: newScore,
-        maxPossibleMarks: maxMarks,
-        score: percentage,
+        score: Math.round((newScore / (selectedTest.totalMarks || 100)) * 100),
         status: 'evaluated',
         evaluatedAt: serverTimestamp(),
         evaluatedBy: 'head'
       });
-      setSubmissions(prev => prev.map(r => 
-        r.id === resultId 
-          ? { 
-              ...r, 
-              totalMarksAwarded: newScore, 
-              maxPossibleMarks: maxMarks,
-              score: percentage, 
-              status: 'evaluated' 
-            }
-          : r
+      
+      // Update local state
+      setSubmissions(submissions.map(s => 
+        s.id === submissionId 
+          ? { ...s, totalMarksAwarded: newScore, score: Math.round((newScore / (selectedTest.totalMarks || 100)) * 100), status: 'evaluated' }
+          : s
       ));
     } catch (e) {
-      console.log('[Head:markSubmission:error]', e.code, e.message);
-      setError(e.message || 'Failed to update score');
+      console.error('Error updating submission score:', e);
+      setError('Failed to update score');
     }
   };
+
+  // If viewing individual submission
+  if (selectedSubmission) {
+    return (
+      <HeadSubmissionDetailView 
+        submission={selectedSubmission}
+        test={selectedTest}
+        onBack={() => setSelectedSubmission(null)}
+      />
+    );
+  }
 
   if (!selectedTest) {
     return (
@@ -1342,13 +1361,349 @@ function HeadResults() {
                       </div>
                     )}
                   </div>
-                  <div className="view-details">
-                    Click to view detailed answers →
-                  </div>
+                  <button 
+                    className="btn btn-sm btn-outline"
+                    onClick={() => setSelectedSubmission(result)}
+                    title="View Details"
+                  >
+                    <Icon name="computer" size="small" /> View Details
+                  </button>
                 </div>
               </div>
             );
           })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Head Submission Detail View Component
+function HeadSubmissionDetailView({ submission, test, onBack }) {
+  const [questions, setQuestions] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [marksDistribution, setMarksDistribution] = useState({});
+  const [totalMarks, setTotalMarks] = useState(0);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    const loadSubmissionDetails = async () => {
+      try {
+        // Fetch questions from the test
+        const questionsRef = collection(db, 'tests', test.id, 'questions');
+        const questionsSnapshot = await getDocs(questionsRef);
+        const questionsData = questionsSnapshot.docs.map(doc => {
+          const data = doc.data();
+          return {
+            id: data.questionId || doc.id,
+            questionText: data.questionText,
+            questionType: data.questionType,
+            options: data.options || [],
+            correctAnswer: data.correctAnswer,
+            marks: data.marks || 1,
+            imageUrl: data.imageUrl || '',
+            ...data
+          };
+        });
+
+        // Sort questions by ID
+        questionsData.sort((a, b) => {
+          const aId = parseInt(a.id) || 0;
+          const bId = parseInt(b.id) || 0;
+          return aId - bId;
+        });
+
+        // Add candidate answers to questions
+        const questionsWithAnswers = questionsData.map(question => {
+          const candidateAnswer = submission.answers?.[question.id] || '';
+          return {
+            ...question,
+            candidateAnswer,
+            isCorrect: question.questionType === 'mcq' ? 
+              candidateAnswer === question.correctAnswer : null
+          };
+        });
+
+        // Initialize marks distribution
+        const initialMarks = {};
+        let calculatedTotal = 0;
+        
+        questionsWithAnswers.forEach(question => {
+          // Check if marks already exist in submission
+          const existingMarks = submission.questionMarks?.[question.id];
+          if (existingMarks !== undefined) {
+            initialMarks[question.id] = existingMarks;
+            calculatedTotal += existingMarks;
+          } else {
+            // Initialize all questions with 0 marks for manual grading
+            initialMarks[question.id] = 0;
+          }
+        });
+
+        setQuestions(questionsWithAnswers);
+        setMarksDistribution(initialMarks);
+        setTotalMarks(calculatedTotal);
+        setLoading(false);
+      } catch (error) {
+        console.error('Error loading submission details:', error);
+        setLoading(false);
+      }
+    };
+
+    loadSubmissionDetails();
+  }, [submission, test.id]);
+
+  const formatDateTime = (timestamp) => {
+    if (!timestamp) return 'N/A';
+    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+    return date.toLocaleString();
+  };
+
+  const handleMarksChange = (questionId, marks) => {
+    const numericMarks = Math.max(0, parseFloat(marks) || 0);
+    const maxMarks = questions.find(q => q.id === questionId)?.marks || 1;
+    const finalMarks = Math.min(numericMarks, maxMarks);
+    
+    setMarksDistribution(prev => ({
+      ...prev,
+      [questionId]: finalMarks
+    }));
+    
+    // Recalculate total
+    const newTotal = Object.values({
+      ...marksDistribution,
+      [questionId]: finalMarks
+    }).reduce((sum, mark) => sum + (mark || 0), 0);
+    setTotalMarks(newTotal);
+  };
+
+  const saveMarksDistribution = async () => {
+    setSaving(true);
+    try {
+      // Calculate percentage score
+      const maxPossibleMarks = questions.reduce((sum, q) => sum + (q.marks || 1), 0);
+      const percentage = maxPossibleMarks > 0 ? Math.round((totalMarks / maxPossibleMarks) * 100) : 0;
+
+      // Update submission in database
+      const submissionRef = doc(db, 'results', submission.id);
+      await updateDoc(submissionRef, {
+        questionMarks: marksDistribution,
+        totalMarksAwarded: totalMarks,
+        maxPossibleMarks: maxPossibleMarks,
+        score: percentage,
+        status: 'evaluated',
+        evaluatedAt: serverTimestamp(),
+        evaluatedBy: 'head'
+      });
+
+      alert('Marks saved successfully!');
+    } catch (error) {
+      console.error('Error saving marks:', error);
+      alert('Failed to save marks. Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="loading-tests">
+        <Loading message="Loading submission details" subtext="Fetching candidate answers and question data" variant="inline" size="large" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="submission-detail-view">
+      <div className="submission-header">
+        <button className="btn btn-outline" onClick={onBack}>
+          <Icon name="submissions" size="small" /> Back to Submissions
+        </button>
+        <div className="submission-info">
+          <h2>Submission Details</h2>
+          <div className="submission-meta">
+            <div className="meta-item">
+              <strong>Candidate:</strong> {submission.candidateName || 'Unknown'}
+            </div>
+            <div className="meta-item">
+              <strong>Test:</strong> {test.title}
+            </div>
+            <div className="meta-item">
+              <strong>Submitted:</strong> {formatDateTime(submission.submittedAt)}
+            </div>
+            <div className="meta-item">
+              <strong>Score:</strong> {submission.totalMarksAwarded !== undefined ? 
+                `${submission.totalMarksAwarded}/${submission.maxPossibleMarks || 'N/A'} marks` : 
+                submission.score !== undefined ? `${submission.score}%` : 'Not graded'}
+            </div>
+            <div className="meta-item">
+              <strong>Status:</strong> 
+              <span className={`badge ${submission.status === 'evaluated' ? 'badge-success' : 'badge-warning'}`}>
+                {submission.status || 'submitted'}
+              </span>
+            </div>
+          </div>
+        </div>
+        <div className="marks-summary-header">
+          <div className="marks-total-display">
+            <span className="marks-total-label">Total Marks:</span>
+            <span className="marks-total-value">{totalMarks} / {questions.reduce((sum, q) => sum + (q.marks || 1), 0)}</span>
+            <span className="marks-percentage">({questions.reduce((sum, q) => sum + (q.marks || 1), 0) > 0 ? 
+              Math.round((totalMarks / questions.reduce((sum, q) => sum + (q.marks || 1), 0)) * 100) : 0}%)</span>
+          </div>
+          <div className="marks-actions">
+            <button 
+              className={`btn btn-primary ${saving ? 'btn-loading' : ''}`}
+              onClick={saveMarksDistribution}
+              disabled={saving}
+            >
+              {saving ? 'Saving...' : <><Icon name="shield" size="small" /> Save All Marks</>}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div className="submission-questions">
+        {questions.map((question, index) => (
+          <div key={question.id} className="submission-question-card">
+            <div className="question-header">
+              <div className="question-title-section">
+                <span className="question-number">Q{index + 1}</span>
+                <div className="question-meta">
+                  <span className="question-type">{question.questionType?.toUpperCase() || 'MCQ'}</span>
+                  <span className="question-marks">Max: {question.marks || 1} marks</span>
+                  {question.questionType === 'mcq' && (
+                    <div className="mcq-answer-preview">
+                      <span className="candidate-choice">Choice: {question.candidateAnswer || 'None'}</span>
+                      <span className={`answer-status ${question.isCorrect ? 'correct' : 'incorrect'}`}>
+                        {question.isCorrect ? <><Icon name="success" size="small" /> Correct</> : <><Icon name="fire" size="small" /> Incorrect</>}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div className="marks-input-section">
+                <div className="marks-input-container">
+                  <label className="marks-label">Marks Awarded:</label>
+                  <div className="marks-input-wrapper">
+                    <input
+                      type="number"
+                      min="0"
+                      max={question.marks || 1}
+                      step="0.5"
+                      value={marksDistribution[question.id] || 0}
+                      onChange={(e) => handleMarksChange(question.id, e.target.value)}
+                      className="marks-input"
+                    />
+                    <span className="marks-max">/ {question.marks || 1}</span>
+                  </div>
+                  {question.questionType === 'mcq' && question.isCorrect !== null && (
+                    <span className={`mcq-result-indicator ${question.isCorrect ? 'correct' : 'incorrect'}`}>
+                      {question.isCorrect ? <><Icon name="success" size="small" /> Correct Answer</> : <><Icon name="fire" size="small" /> Wrong Answer</>}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="question-content">
+              <div className="question-text">
+                {question.questionText || 'No question text'}
+              </div>
+
+              {/* Question Image */}
+              {question.imageUrl && (
+                <div className="question-image">
+                  <img 
+                    src={question.imageUrl} 
+                    alt="Question illustration"
+                    style={{
+                      maxWidth: '100%',
+                      maxHeight: '300px',
+                      borderRadius: '8px',
+                      border: '1px solid #e5e7eb',
+                      marginTop: '1rem'
+                    }}
+                    onError={(e) => {
+                      e.target.style.display = 'none';
+                    }}
+                  />
+                </div>
+              )}
+
+              {/* MCQ Options and Answer */}
+              {question.questionType === 'mcq' && (
+                <div className="mcq-section">
+                  <div className="candidate-answer-display">
+                    <h4>Candidate's Answer:</h4>
+                    <div className={`candidate-selected-answer ${question.isCorrect ? 'correct' : 'incorrect'}`}>
+                      <span className="selected-option-text">
+                        {question.candidateAnswer || 'No answer selected'}
+                      </span>
+                      <span className={`answer-result ${question.isCorrect ? 'correct' : 'incorrect'}`}>
+                        {question.isCorrect ? <><Icon name="success" size="small" /> Correct</> : <><Icon name="fire" size="small" /> Incorrect</>}
+                      </span>
+                    </div>
+                  </div>
+                  
+                  <div className="question-options">
+                    <h4>All Options:</h4>
+                    {question.options.map((option, optIndex) => (
+                      <div 
+                        key={optIndex} 
+                        className={`option ${
+                          option === question.correctAnswer ? 'correct-option' : ''
+                        } ${
+                          option === question.candidateAnswer ? 'selected-option' : ''
+                        }`}
+                      >
+                        <span className="option-label">{String.fromCharCode(65 + optIndex)}.</span>
+                        <span className="option-text">{option}</span>
+                        {option === question.correctAnswer && (
+                          <span className="correct-indicator"><Icon name="success" size="small" /> Correct Answer</span>
+                        )}
+                        {option === question.candidateAnswer && option !== question.correctAnswer && (
+                          <span className="selected-indicator">← Candidate Selected</span>
+                        )}
+                        {option === question.candidateAnswer && option === question.correctAnswer && (
+                          <span className="both-indicator">← Candidate Selected (Correct!)</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Long Answer or Code Answer */}
+              {(question.questionType === 'long' || question.questionType === 'code') && (
+                <div className="text-answer-section">
+                  <h4>Candidate's Answer:</h4>
+                  <div className="candidate-answer">
+                    {question.candidateAnswer ? (
+                      <pre style={{
+                        background: '#f8f9fa',
+                        padding: '1rem',
+                        borderRadius: '8px',
+                        border: '1px solid #e5e7eb',
+                        whiteSpace: 'pre-wrap',
+                        fontFamily: question.questionType === 'code' ? 'monospace' : 'inherit'
+                      }}>
+                        {question.candidateAnswer}
+                      </pre>
+                    ) : (
+                      <div className="no-answer">No answer provided</div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {questions.length === 0 && (
+        <div className="no-questions">
+          <p>No questions found for this submission</p>
         </div>
       )}
     </div>
@@ -1364,6 +1719,7 @@ function HeadDashboard() {
     { label: 'Create Test', value: 'create' },
     { label: 'Manage Tests', value: 'manage' },
     { label: 'Results', value: 'results' },
+    { label: 'Leaderboard', value: 'leaderboard' },
   ], []);
 
   const handleSignOut = async () => {
@@ -1413,6 +1769,7 @@ function HeadDashboard() {
           {activeTab === 'create' && <HeadCreateTest />}
           {activeTab === 'manage' && <HeadManageTests />}
           {activeTab === 'results' && <HeadResults />}
+          {activeTab === 'leaderboard' && <Leaderboard />}
         </div>
       </div>
     </div>

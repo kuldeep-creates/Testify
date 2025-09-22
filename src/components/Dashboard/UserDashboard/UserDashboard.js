@@ -5,6 +5,7 @@ import { auth, db } from '../../../firebase';
 import { collection, getDocs, query, where, orderBy, addDoc, serverTimestamp, getDoc, doc } from 'firebase/firestore';
 import { useFirebase } from '../../../context/FirebaseContext';
 import Loading from '../../Loading/Loading';
+import Leaderboard from '../../Leaderboard/Leaderboard';
 import './UserDashboard.css';
 
 // Candidate Tests Component
@@ -381,6 +382,7 @@ function UserDashboard() {
   const tabs = useMemo(() => [
     { label: 'Available Tests', value: 'tests' },
     { label: 'My Results', value: 'results' },
+    { label: 'Leaderboard', value: 'leaderboard' },
   ], []);
 
   const handleSignOut = async () => {
@@ -429,6 +431,7 @@ function UserDashboard() {
         <div className="dashboard-main">
           {activeTab === 'tests' && <CandidateTests />}
           {activeTab === 'results' && <CandidateResults />}
+          {activeTab === 'leaderboard' && <Leaderboard />}
         </div>
       </div>
     </div>

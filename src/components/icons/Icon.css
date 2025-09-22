@@ -1,0 +1,121 @@
+/* Icon Component Styles */
+.icon {
+  display: inline-block;
+  vertical-align: middle;
+  object-fit: contain;
+  transition: all 0.2s ease;
+}
+
+/* Size variants */
+.icon-small {
+  width: 16px;
+  height: 16px;
+}
+
+.icon-medium {
+  width: 20px;
+  height: 20px;
+}
+
+.icon-large {
+  width: 24px;
+  height: 24px;
+}
+
+.icon-xl {
+  width: 32px;
+  height: 32px;
+}
+
+.icon-2xl {
+  width: 48px;
+  height: 48px;
+}
+
+/* Hover effects */
+.icon:hover {
+  transform: scale(1.05);
+}
+
+/* Button icon spacing */
+.btn .icon {
+  margin-right: 0.375rem;
+}
+
+.btn .icon:only-child {
+  margin-right: 0;
+}
+
+/* Icon in different contexts */
+.icon-button {
+  cursor: pointer;
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.icon-button:hover {
+  transform: scale(1.1);
+  opacity: 0.8;
+}
+
+.icon-button:active {
+  transform: scale(0.95);
+}
+
+/* Disabled state */
+.icon-disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.icon-disabled:hover {
+  transform: none;
+  opacity: 0.5;
+}
+
+/* Loading state */
+.icon-loading {
+  animation: iconPulse 1.5s ease-in-out infinite;
+}
+
+@keyframes iconPulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+/* Icon alignment helpers */
+.icon-center {
+  display: block;
+  margin: 0 auto;
+}
+
+.icon-inline {
+  vertical-align: baseline;
+}
+
+/* Icon in cards and headers */
+.card-header .icon,
+.section-header .icon {
+  margin-right: 0.5rem;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .icon-large {
+    width: 20px;
+    height: 20px;
+  }
+  
+  .icon-xl {
+    width: 28px;
+    height: 28px;
+  }
+  
+  .icon-2xl {
+    width: 40px;
+    height: 40px;
+  }
+}
