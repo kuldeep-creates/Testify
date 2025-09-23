@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { signOut } from 'firebase/auth';
 import { auth, db } from '../../../firebase';
@@ -7,6 +7,8 @@ import { useFirebase } from '../../../context/FirebaseContext';
 import Loading from '../../Loading/Loading';
 import Icon from '../../icons/Icon';
 import Leaderboard from '../../Leaderboard/Leaderboard';
+import { exportSubmissionsToExcel } from '../../../utils/excelExport';
+import { exportSubmissionsToPDF } from '../../../utils/pdfExport';
 import './AdminDashboard.css';
 
 // 1. Overview Section Component
@@ -1605,6 +1607,26 @@ function AdminMonitoring() {
     return getSuspiciousActivityCount(participant) > 5;
   };
 
+  // Export to Excel function
+  const exportToExcel = async () => {
+    await exportSubmissionsToExcel({
+      submissions: participants,
+      selectedTest,
+      setLoading
+    });
+  };
+
+  // Export to PDF function  
+  const exportToPDF = async () => {
+    await exportSubmissionsToPDF({
+      submissions: participants,
+      selectedTest,
+      setLoading,
+      exportType: 'admin'
+    });
+  };
+
+
   if (loading) return (
     <div className="loading-tests">
       <Loading message="Loading monitoring data" subtext="Analyzing test activities and security logs" variant="inline" size="large" />
@@ -1629,12 +1651,32 @@ function AdminMonitoring() {
     return (
       <div className="participants-monitoring">
         <div className="monitoring-header">
-          <button className="btn btn-outline" onClick={() => setSelectedTest(null)}>
-            <Icon name="leaderboard" size="small" /> Back to Tests
-          </button>
-          <div className="test-info">
-            <h2>Monitoring: {selectedTest.title}</h2>
-            <p>{participants.length} participants being monitored</p>
+          <div className="header-left">
+            <button className="btn btn-outline" onClick={() => setSelectedTest(null)}>
+              <Icon name="leaderboard" size="small" /> Back to Tests
+            </button>
+            <div className="test-info">
+              <h2>Monitoring: {selectedTest.title}</h2>
+              <p>{participants.length} participants being monitored</p>
+            </div>
+          </div>
+          <div className="export-buttons">
+            <button 
+              className="btn btn-success btn-sm" 
+              onClick={exportToExcel}
+              disabled={loading || participants.length === 0}
+              title="Export to Excel"
+            >
+              📊 Excel
+            </button>
+            <button 
+              className="btn btn-danger btn-sm" 
+              onClick={exportToPDF}
+              disabled={loading || participants.length === 0}
+              title="Export to PDF"
+            >
+              📄 PDF
+            </button>
           </div>
         </div>
 

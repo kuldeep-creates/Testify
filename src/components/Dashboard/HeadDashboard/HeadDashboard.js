@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { signOut } from 'firebase/auth';
 import { auth, db } from '../../../firebase';
@@ -8,6 +8,8 @@ import { useFirebase } from '../../../context/FirebaseContext';
 import Loading from '../../Loading/Loading';
 import Icon from '../../icons/Icon';
 import Leaderboard from '../../Leaderboard/Leaderboard';
+import { exportSubmissionsToExcel } from '../../../utils/excelExport';
+import { exportSubmissionsToPDF } from '../../../utils/pdfExport';
 import './HeadDashboard.css';
 
 // Head Create Test Component
@@ -1196,6 +1198,25 @@ function HeadResults() {
     }
   };
 
+  // Export to Excel function
+  const exportToExcel = async () => {
+    await exportSubmissionsToExcel({
+      submissions,
+      selectedTest,
+      setLoading
+    });
+  };
+
+  // Export to PDF function
+  const exportToPDF = async () => {
+    await exportSubmissionsToPDF({
+      submissions,
+      selectedTest,
+      setLoading,
+      exportType: 'head'
+    });
+  };
+
   // If viewing individual submission
   if (selectedSubmission) {
     return (
@@ -1260,6 +1281,24 @@ function HeadResults() {
       <div className="results-header">
         <h3>Submissions for: {selectedTest.title}</h3>
         <div className="results-actions">
+          <div className="export-buttons">
+            <button 
+              className="btn btn-success btn-sm" 
+              onClick={exportToExcel}
+              disabled={loading || submissions.length === 0}
+              title="Export to Excel"
+            >
+              📊 Excel
+            </button>
+            <button 
+              className="btn btn-danger btn-sm" 
+              onClick={exportToPDF}
+              disabled={loading || submissions.length === 0}
+              title="Export to PDF"
+            >
+              📄 PDF
+            </button>
+          </div>
           <button 
             className="btn btn-outline btn-sm" 
             onClick={() => loadSubmissions(selectedTest.id)}
@@ -1713,7 +1752,9 @@ function HeadSubmissionDetailView({ submission, test, onBack }) {
 function HeadDashboard() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('create');
+  const [profileOpen, setProfileOpen] = useState(false);
   const { user, userDoc, loading: contextLoading } = useFirebase();
+  const dropdownRef = useRef(null);
 
   const tabs = useMemo(() => [
     { label: 'Create Test', value: 'create' },
@@ -1731,6 +1772,22 @@ function HeadDashboard() {
     }
   };
 
+  const handleAccount = () => {
+    setProfileOpen(false);
+    navigate('/account');
+  };
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handler = (e) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        setProfileOpen(false);
+      }
+    };
+    document.addEventListener('click', handler);
+    return () => document.removeEventListener('click', handler);
+  }, []);
+
   if (contextLoading) {
     return <Loading message="Loading head dashboard" subtext="Please wait while we prepare your workspace" />;
   }
@@ -1743,9 +1800,29 @@ function HeadDashboard() {
             <h1>Head Dashboard</h1>
             <span className="badge badge-head">Head</span>
           </div>
-          <button className="btn btn-outline" onClick={handleSignOut}>
-            Sign Out
-          </button>
+          <div className="profile-menu" ref={dropdownRef}>
+            <button
+              className="profile-button"
+              onClick={() => setProfileOpen((o) => !o)}
+              aria-haspopup="true"
+              aria-expanded={profileOpen}
+              title="Profile"
+            >
+              <Icon name="user" size="medium" />
+            </button>
+            {profileOpen && (
+              <div className="profile-dropdown" role="menu">
+                <button className="dropdown-item" onClick={handleAccount} role="menuitem">
+                  <Icon name="notebook" size="small" />
+                  Account
+                </button>
+                <button className="dropdown-item danger" onClick={handleSignOut} role="menuitem">
+                  <Icon name="fire" size="small" />
+                  Logout
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
