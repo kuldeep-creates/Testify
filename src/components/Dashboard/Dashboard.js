@@ -11,6 +11,7 @@ function Dashboard() {
   const { userDoc, blocked, loading } = useFirebase();
   const role = (userDoc?.role || 'candidate').toLowerCase();
 
+
   if (loading) {
     return <Loading message="Loading dashboard" subtext="Please wait while we prepare your workspace" />;
   }
