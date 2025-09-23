@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { signOut } from 'firebase/auth';
 import { auth, db } from '../../../firebase';
@@ -6,6 +6,7 @@ import { collection, getDocs, query, where, orderBy, addDoc, serverTimestamp, ge
 import { useFirebase } from '../../../context/FirebaseContext';
 import Loading from '../../Loading/Loading';
 import Leaderboard from '../../Leaderboard/Leaderboard';
+import Icon from '../../icons/Icon';
 import './UserDashboard.css';
 
 // Candidate Tests Component
@@ -328,12 +329,17 @@ function CandidateResults() {
               <div className="result-score-container">
                 <div className="score-display">
                   <span className="score-value">
-                    {result.score !== undefined ? result.score : '--'}
+                    {result.totalMarksAwarded !== undefined ? result.totalMarksAwarded : (result.score !== undefined ? result.score : '--')}
                     <span className="score-divider">/</span>
                     <span className="score-total">
-                      {result.totalMarks !== undefined ? result.totalMarks : '--'}
+                      {result.maxPossibleMarks !== undefined ? result.maxPossibleMarks : (result.totalMarks !== undefined ? result.totalMarks : '--')}
                     </span>
                   </span>
+                  {result.status === 'evaluated' && result.score !== undefined && (
+                    <div className="percentage-score">
+                      ({Math.round(result.score)}%)
+                    </div>
+                  )}
                 </div>
                 <div className="score-label">
                   {result.status === 'evaluated' ? 'Score' : 'Submitted'}
@@ -367,8 +373,12 @@ function CandidateProfile() {
 function UserDashboard() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('tests');
+  const [profileOpen, setProfileOpen] = useState(false);
   const { user, userDoc, loading: contextLoading } = useFirebase();
-  const role = (userDoc?.role || 'candidate').toLowerCase();
+  const rawRole = (userDoc?.role || '').toString().toLowerCase().trim();
+  const isCandidate = rawRole === 'candidate' || !rawRole;
+  const dropdownRef = useRef(null);
+
 
   const themeClass = 'theme-candidate';
 
@@ -394,6 +404,22 @@ function UserDashboard() {
     }
   };
 
+  const handleAccount = () => {
+    setProfileOpen(false);
+    navigate('/account');
+  };
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handler = (e) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        setProfileOpen(false);
+      }
+    };
+    document.addEventListener('click', handler);
+    return () => document.removeEventListener('click', handler);
+  }, []);
+
   if (contextLoading) {
     return <Loading message="Loading dashboard" subtext="Please wait while we prepare your workspace" />;
   }
@@ -406,13 +432,68 @@ function UserDashboard() {
             <h1>Welcome, {userDoc?.name || user?.displayName || 'Candidate'}</h1>
             
           </div>
-          <button className="btn btn-outline" onClick={handleSignOut}>
-            Sign Out
-          </button>
+          {isCandidate ? (
+            <div className="profile-menu" ref={dropdownRef}>
+              <button
+                className="profile-button"
+                onClick={() => setProfileOpen((o) => !o)}
+                aria-haspopup="true"
+                aria-expanded={profileOpen}
+                title="Profile"
+              >
+                <Icon name="user" size="medium" />
+              </button>
+              {profileOpen && (
+                <div className="profile-dropdown" role="menu">
+                  <button className="dropdown-item" onClick={handleAccount} role="menuitem">
+                    <Icon name="notebook" size="small" />
+                    Account
+                  </button>
+                  <button className="dropdown-item danger" onClick={handleSignOut} role="menuitem">
+                    <Icon name="fire" size="small" />
+                    Logout
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : (
+            <button className="btn btn-outline" onClick={handleSignOut}>
+              Sign Out
+            </button>
+          )}
         </div>
       </div>
 
       <div className="dashboard-content">
+        {isCandidate && (
+          (() => {
+            const profile = userDoc || {};
+            const missing = !profile.fullName || !profile.gmail || !profile.collegeEmail || !profile.year || !profile.branch || !profile.mobile;
+            if (!missing) return null;
+            return (
+              <div style={{
+                border: '1px solid #fde68a',
+                background: '#fffbeb',
+                color: '#92400e',
+                borderRadius: 12,
+                padding: '0.75rem 1rem',
+                marginBottom: '1rem',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '1rem'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <Icon name="mail" size="small" />
+                  <span><strong>Complete your profile</strong> to ensure accurate records: Full Name, Gmail, College Email, Year, Branch, Mobile.</span>
+                </div>
+                <button className="btn btn-secondary" onClick={() => navigate('/account')}>
+                  Update Now
+                </button>
+              </div>
+            );
+          })()
+        )}
         <div className="dashboard-nav">
           <div className="tc-tabs">
             {tabs.map((t) => (
