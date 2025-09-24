@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, getDocs, query, where, orderBy, doc, updateDoc, setDoc, getDoc } from 'firebase/firestore';
+import { collection, getDocs, query, where, doc, updateDoc, getDoc } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { useFirebase } from '../../context/FirebaseContext';
 import Loading from '../Loading/Loading';
@@ -260,14 +260,6 @@ const Leaderboard = () => {
     });
     
     return ranges.filter(range => range.count > 0);
-  };
-
-  // Format time taken
-  const formatTime = (seconds) => {
-    if (!seconds) return 'N/A';
-    const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = seconds % 60;
-    return `${minutes}m ${remainingSeconds}s`;
   };
 
   // Format date

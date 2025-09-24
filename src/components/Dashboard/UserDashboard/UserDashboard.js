@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { signOut } from 'firebase/auth';
 import { auth, db } from '../../../firebase';
-import { collection, getDocs, query, where, orderBy, addDoc, serverTimestamp, getDoc, doc } from 'firebase/firestore';
+import { collection, getDocs, query, where, getDoc, doc } from 'firebase/firestore';
 import { useFirebase } from '../../../context/FirebaseContext';
 import Loading from '../../Loading/Loading';
 import Leaderboard from '../../Leaderboard/Leaderboard';
@@ -448,20 +448,19 @@ function CandidateResults() {
 }
 
 // Placeholder for future candidate features
-function CandidateProfile() {
-  return (
-    <div className="candidate-profile">
-      <h2>Profile Settings</h2>
-      <p>Profile management will be available soon.</p>
-    </div>
-  );
-}
+// function CandidateProfile() {
+//   return (
+//     <div className="candidate-profile">
+//       <h2>Profile Settings</h2>
+//       <p>Profile management will be available soon.</p>
+//     </div>
+//   );
+// }
 
 function UserDashboard() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('tests');
   const { user, userDoc, loading: contextLoading } = useFirebase();
-  const role = (userDoc?.role || 'candidate').toLowerCase();
   const [showProfileMenu, setShowProfileMenu] = useState(false);
 
   const themeClass = 'theme-candidate';
@@ -470,8 +469,6 @@ function UserDashboard() {
   useEffect(() => {
     setActiveTab('tests');
   }, []);
-
-  const badgeTone = 'candidate';
   
   const tabs = useMemo(() => [
     { label: 'Available Tests', value: 'tests' },
