@@ -8,7 +8,52 @@ import { useFirebase } from '../../../context/FirebaseContext';
 import Loading from '../../Loading/Loading';
 import Icon from '../../icons/Icon';
 import Leaderboard from '../../Leaderboard/Leaderboard';
+import { exportSubmissionsToExcel } from '../../../utils/excelExport';
+import { exportSubmissionsToPDF } from '../../../utils/pdfExport';
 import './HeadDashboard.css';
+
+// Helper function to format duration
+const formatDuration = (hours, minutes) => {
+  if (hours === 0) {
+    return `${minutes} min`;
+  } else if (minutes === 0) {
+    return `${hours}h`;
+  } else {
+    return `${hours}h ${minutes}min`;
+  }
+};
+
+// Helper function to parse duration string into hours and minutes
+const parseDuration = (durationString) => {
+  if (!durationString) return { hours: 0, minutes: 30 };
+  
+  // Handle formats like "30 min", "1h", "1h 30min", "90 min"
+  const minMatch = durationString.match(/(\d+)\s*min/);
+  const hourMatch = durationString.match(/(\d+)h/);
+  
+  let totalMinutes = 0;
+  
+  if (hourMatch) {
+    totalMinutes += parseInt(hourMatch[1]) * 60;
+  }
+  
+  if (minMatch) {
+    totalMinutes += parseInt(minMatch[1]);
+  }
+  
+  // If no matches, try to parse as just minutes
+  if (!hourMatch && !minMatch) {
+    const numMatch = durationString.match(/(\d+)/);
+    if (numMatch) {
+      totalMinutes = parseInt(numMatch[1]);
+    }
+  }
+  
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  
+  return { hours, minutes };
+};
 
 // Head Create Test Component
 function HeadCreateTest() {
@@ -18,9 +63,10 @@ function HeadCreateTest() {
     description: '',
     durationHours: 0,
     durationMinutes: 30,
-    domain: 'DSA',
+    branch: 'DSA',
     password: '',
-    totalMarks: 0
+    totalMarks: 0,
+    allowMultipleSubmissions: false
   });
   const [questions, setQuestions] = useState([]);
   const [qIndex, setQIndex] = useState(0);
@@ -29,21 +75,10 @@ function HeadCreateTest() {
   const [success, setSuccess] = useState('');
   const { userDoc } = useFirebase();
 
-  // Helper function to format duration
-  const formatDuration = (hours, minutes) => {
-    if (hours === 0) {
-      return `${minutes} min`;
-    } else if (minutes === 0) {
-      return `${hours}h`;
-    } else {
-      return `${hours}h ${minutes}min`;
-    }
-  };
-
-  // Set domain based on head's assigned domain
+  // Set branch based on head's assigned domain
   useEffect(() => {
     if (userDoc?.domain) {
-      setTestData(prev => ({ ...prev, domain: userDoc.domain }));
+      setTestData(prev => ({ ...prev, branch: userDoc.domain }));
     }
   }, [userDoc?.domain]);
 
@@ -97,8 +132,8 @@ function HeadCreateTest() {
         setError('Test title is required');
         return;
       }
-      if (!testData.domain || testData.domain.trim() === '') {
-        setError('Test domain is required');
+      if (!testData.branch || testData.branch.trim() === '') {
+        setError('Test branch is required');
         return;
       }
       if (questions.length === 0) {
@@ -113,10 +148,11 @@ function HeadCreateTest() {
         testId,
         title: testData.title.trim(),
         description: testData.description?.trim() || 'No description',
-        duration: testData.duration || '30 min',
-        domain: testData.domain.trim(),
+        duration: formatDuration(testData.durationHours, testData.durationMinutes),
+        branch: testData.branch.trim(),
         password: testData.password?.trim() || 'test123',
         totalMarks: questions.reduce((sum, q) => sum + (q.marks || 1), 0),
+        allowMultipleSubmissions: testData.allowMultipleSubmissions || false,
         status: 'active',
         createdBy: auth.currentUser?.uid || 'unknown',
         createdAt: serverTimestamp(),
@@ -144,7 +180,7 @@ function HeadCreateTest() {
 
       setSuccess('Test created successfully!');
       setStep(1);
-      setTestData({ title: '', description: '', duration: '30 min', domain: 'Full Stack', password: '', totalMarks: 0 });
+      setTestData({ title: '', description: '', durationHours: 0, durationMinutes: 30, branch: 'Full Stack', password: '', totalMarks: 0, allowMultipleSubmissions: false });
       setQuestions([]);
     } catch (e) {
       console.log('[Head:createTest:error]', e.code, e.message);
@@ -161,7 +197,7 @@ function HeadCreateTest() {
           <h3>Create New Test</h3>
           <p>Design and configure your test questions</p>
         </div>
-        <div className="domain-badge">
+        <div className="branch-badge">
           <span>Domain:</span>
           <span className="badge badge-primary">{userDoc?.domain || 'Full Stack'}</span>
         </div>
@@ -200,18 +236,37 @@ function HeadCreateTest() {
             <div className="form-row">
               <div className="form-group">
                 <label>Test Duration</label>
-                <select
-                  className="form-input"
-                  value={testData.duration}
-                  onChange={(e) => setTestData({...testData, duration: e.target.value})}
-                >
-                  <option value="30 min">30 minutes</option>
-                  <option value="1h">1 hour</option>
-                  <option value="1.5h">1.5 hours</option>
-                  <option value="2h">2 hours</option>
-                  <option value="3h">3 hours</option>
-                </select>
-                <div className="form-help">Select the time limit for completing the test</div>
+                <div className="duration-inputs" style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
+                    <input
+                      type="number"
+                      min="0"
+                      max="12"
+                      className="form-input"
+                      value={testData.durationHours}
+                      onChange={(e) => setTestData({...testData, durationHours: parseInt(e.target.value) || 0})}
+                      placeholder="0"
+                    />
+                    <small style={{ color: '#6b7280', fontSize: '12px', marginTop: '4px' }}>Hours</small>
+                  </div>
+                  <span style={{ color: '#6b7280', fontWeight: 'bold' }}>:</span>
+                  <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
+                    <input
+                      type="number"
+                      min="0"
+                      max="59"
+                      step="5"
+                      className="form-input"
+                      value={testData.durationMinutes}
+                      onChange={(e) => setTestData({...testData, durationMinutes: parseInt(e.target.value) || 0})}
+                      placeholder="30"
+                    />
+                    <small style={{ color: '#6b7280', fontSize: '12px', marginTop: '4px' }}>Minutes</small>
+                  </div>
+                </div>
+                <div className="form-help">
+                  Set the time limit for completing the test. Total: {formatDuration(testData.durationHours, testData.durationMinutes)}
+                </div>
               </div>
               
               <div className="form-group">
@@ -219,7 +274,7 @@ function HeadCreateTest() {
                 <input
                   type="text"
                   className="form-input readonly"
-                  value={testData.domain}
+                  value={testData.branch}
                   readOnly
                   title="Domain is assigned by admin and cannot be changed"
                 />
@@ -237,6 +292,56 @@ function HeadCreateTest() {
                 onChange={(e) => setTestData({...testData, password: e.target.value})}
               />
               <div className="form-help">Candidates will need this password to access the test</div>
+            </div>
+
+            <div className="form-group">
+              <label>Multiple Submissions</label>
+              <div className="toggle-container" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <label className="toggle-switch" style={{ position: 'relative', display: 'inline-block', width: '50px', height: '24px' }}>
+                  <input
+                    type="checkbox"
+                    checked={testData.allowMultipleSubmissions}
+                    onChange={(e) => setTestData({...testData, allowMultipleSubmissions: e.target.checked})}
+                    style={{ opacity: 0, width: 0, height: 0 }}
+                  />
+                  <span 
+                    className="toggle-slider"
+                    style={{
+                      position: 'absolute',
+                      cursor: 'pointer',
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      backgroundColor: testData.allowMultipleSubmissions ? '#4CAF50' : '#ccc',
+                      transition: '0.4s',
+                      borderRadius: '24px'
+                    }}
+                  >
+                    <span
+                      style={{
+                        position: 'absolute',
+                        content: '',
+                        height: '18px',
+                        width: '18px',
+                        left: testData.allowMultipleSubmissions ? '26px' : '3px',
+                        bottom: '3px',
+                        backgroundColor: 'white',
+                        transition: '0.4s',
+                        borderRadius: '50%'
+                      }}
+                    />
+                  </span>
+                </label>
+                <span style={{ fontSize: '14px', color: testData.allowMultipleSubmissions ? '#4CAF50' : '#666' }}>
+                  {testData.allowMultipleSubmissions ? 'Enabled' : 'Disabled'}
+                </span>
+              </div>
+              <div className="form-help">
+                {testData.allowMultipleSubmissions 
+                  ? 'Candidates can submit multiple times. Only the latest submission will be considered for grading.' 
+                  : 'Candidates can submit only once. Choose this for final exams or assessments.'}
+              </div>
             </div>
 
             <div className="form-actions">
@@ -461,7 +566,10 @@ function HeadManageTests() {
     title: '',
     description: '',
     duration: '30 min',
-    password: ''
+    durationHours: 0,
+    durationMinutes: 30,
+    password: '',
+    allowMultipleSubmissions: false
   });
   const [editQuestions, setEditQuestions] = useState([]);
   const [editQIndex, setEditQIndex] = useState(0);
@@ -474,7 +582,7 @@ function HeadManageTests() {
       setError('');
       try {
         const testsRef = collection(db, 'tests');
-        const q = query(testsRef, where('domain', '==', userDoc?.domain || 'Full Stack'));
+        const q = query(testsRef, where('branch', '==', userDoc?.domain || 'Full Stack'));
         const snap = await getDocs(q);
         const testsData = snap.docs.map(d => ({ id: d.id, ...d.data() }));
         setTests(testsData);
@@ -546,11 +654,15 @@ function HeadManageTests() {
       
       if (testData) {
         setEditingTest(test);
+        const parsedDuration = parseDuration(testData.duration || '30 min');
         setEditTestData({
           title: testData.title || '',
           description: testData.description || '',
           duration: testData.duration || '30 min',
-          password: testData.password || ''
+          durationHours: parsedDuration.hours,
+          durationMinutes: parsedDuration.minutes,
+          password: testData.password || '',
+          allowMultipleSubmissions: testData.allowMultipleSubmissions || false
         });
         
         // Ensure questions have all required fields including imageUrl
@@ -582,7 +694,7 @@ function HeadManageTests() {
     <div className="head-manage-tests">
       <div className="manage-header">
         <h3>Manage Tests</h3>
-        <div className="domain-badge">
+        <div className="branch-badge">
           <span>Domain:</span>
           <span className="badge badge-primary">{userDoc?.domain || 'Full Stack'}</span>
         </div>
@@ -604,7 +716,7 @@ function HeadManageTests() {
                 <div>
                   <h4>{test.title}</h4>
                   <div className="test-meta">
-                    {test.domain} • {test.duration} • {test.totalMarks} marks
+                    {test.branch} • {test.duration} • {test.totalMarks} marks
                   </div>
                   <div className="test-details">
                     <span>Created: {test.createdAt?.toDate?.()?.toLocaleDateString() || 'Unknown'}</span>
@@ -679,18 +791,37 @@ function HeadManageTests() {
                   <div className="form-row">
                     <div className="form-group">
                       <label>Duration</label>
-                      <select
-                        value={editTestData.duration}
-                        onChange={(e) => setEditTestData({...editTestData, duration: e.target.value})}
-                        className="form-select"
-                      >
-                        <option value="15 min">15 minutes</option>
-                        <option value="30 min">30 minutes</option>
-                        <option value="45 min">45 minutes</option>
-                        <option value="60 min">1 hour</option>
-                        <option value="90 min">1.5 hours</option>
-                        <option value="120 min">2 hours</option>
-                      </select>
+                      <div className="duration-inputs" style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
+                          <input
+                            type="number"
+                            min="0"
+                            max="12"
+                            className="form-input"
+                            value={editTestData.durationHours}
+                            onChange={(e) => setEditTestData({...editTestData, durationHours: parseInt(e.target.value) || 0})}
+                            placeholder="0"
+                          />
+                          <small style={{ color: '#6b7280', fontSize: '12px', marginTop: '4px' }}>Hours</small>
+                        </div>
+                        <span style={{ color: '#6b7280', fontWeight: 'bold' }}>:</span>
+                        <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
+                          <input
+                            type="number"
+                            min="0"
+                            max="59"
+                            step="1"
+                            className="form-input"
+                            value={editTestData.durationMinutes}
+                            onChange={(e) => setEditTestData({...editTestData, durationMinutes: parseInt(e.target.value) || 0})}
+                            placeholder="30"
+                          />
+                          <small style={{ color: '#6b7280', fontSize: '12px', marginTop: '4px' }}>Minutes</small>
+                        </div>
+                      </div>
+                      <div className="form-help">
+                        Total: {formatDuration(editTestData.durationHours, editTestData.durationMinutes)}
+                      </div>
                     </div>
                     <div className="form-group">
                       <label>Password</label>
@@ -703,6 +834,57 @@ function HeadManageTests() {
                       />
                     </div>
                   </div>
+
+                  <div className="form-group">
+                    <label>Multiple Submissions</label>
+                    <div className="toggle-container" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <label className="toggle-switch" style={{ position: 'relative', display: 'inline-block', width: '50px', height: '24px' }}>
+                        <input
+                          type="checkbox"
+                          checked={editTestData.allowMultipleSubmissions}
+                          onChange={(e) => setEditTestData({...editTestData, allowMultipleSubmissions: e.target.checked})}
+                          style={{ opacity: 0, width: 0, height: 0 }}
+                        />
+                        <span 
+                          className="toggle-slider"
+                          style={{
+                            position: 'absolute',
+                            cursor: 'pointer',
+                            top: 0,
+                            left: 0,
+                            right: 0,
+                            bottom: 0,
+                            backgroundColor: editTestData.allowMultipleSubmissions ? '#4CAF50' : '#ccc',
+                            transition: '0.4s',
+                            borderRadius: '24px'
+                          }}
+                        >
+                          <span
+                            style={{
+                              position: 'absolute',
+                              content: '',
+                              height: '18px',
+                              width: '18px',
+                              left: editTestData.allowMultipleSubmissions ? '26px' : '3px',
+                              bottom: '3px',
+                              backgroundColor: 'white',
+                              transition: '0.4s',
+                              borderRadius: '50%'
+                            }}
+                          />
+                        </span>
+                      </label>
+                      <span style={{ fontSize: '14px', color: editTestData.allowMultipleSubmissions ? '#4CAF50' : '#666' }}>
+                        {editTestData.allowMultipleSubmissions ? 'Enabled' : 'Disabled'}
+                      </span>
+                    </div>
+                    <div className="form-help">
+                      {editTestData.allowMultipleSubmissions 
+                        ? 'Candidates can submit multiple times. Only the latest submission will be considered for grading.' 
+                        : 'Candidates can submit only once. Choose this for final exams or assessments.'}
+                    </div>
+                  </div>
+
                   <div className="modal-actions">
                     <button 
                       className="btn btn-primary"
@@ -947,8 +1129,9 @@ function HeadManageTests() {
                           await updateDoc(doc(db, 'tests', editingTest.id), {
                             title: editTestData.title.trim(),
                             description: editTestData.description.trim(),
-                            duration: editTestData.duration,
+                            duration: formatDuration(editTestData.durationHours, editTestData.durationMinutes),
                             password: editTestData.password.trim(),
+                            allowMultipleSubmissions: editTestData.allowMultipleSubmissions,
                             totalMarks: totalMarks,
                             updatedAt: serverTimestamp()
                           });
@@ -981,7 +1164,7 @@ function HeadManageTests() {
                           // Update local state
                           setTests(tests.map(t => 
                             t.id === editingTest.id 
-                              ? { ...t, ...editTestData, totalMarks } 
+                              ? { ...t, ...editTestData, totalMarks, allowMultipleSubmissions: editTestData.allowMultipleSubmissions } 
                               : t
                           ));
                           
@@ -1018,6 +1201,7 @@ function HeadResults() {
   const [selectedSubmission, setSelectedSubmission] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [exporting, setExporting] = useState(false);
   const { userDoc } = useFirebase();
 
   useEffect(() => {
@@ -1026,7 +1210,7 @@ function HeadResults() {
       setError('');
       try {
         const testsRef = collection(db, 'tests');
-        const testsQuery = query(testsRef, where('domain', '==', userDoc?.domain || 'Full Stack'));
+        const testsQuery = query(testsRef, where('branch', '==', userDoc?.branch || 'Full Stack'));
         const testsSnap = await getDocs(testsQuery);
         const testsData = testsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
         setTests(testsData);
@@ -1212,9 +1396,9 @@ function HeadResults() {
       <div className="head-results">
         <div className="results-header">
           <h3>Test Results</h3>
-          <div className="domain-badge">
-            <span>Domain:</span>
-            <span className="badge badge-primary">{userDoc?.domain || 'Full Stack'}</span>
+          <div className="branch-badge">
+            <span>Branch:</span>
+            <span className="badge badge-primary">{userDoc?.branch || 'Full Stack'}</span>
           </div>
         </div>
         
@@ -1237,7 +1421,7 @@ function HeadResults() {
                   <div>
                     <h4>{test.title}</h4>
                     <div className="test-meta">
-                      {test.domain} • {test.duration} • {test.totalMarks} marks
+                      {test.branch} • {test.duration} • {test.totalMarks} marks
                     </div>
                     {test.description && (
                       <div className="test-description">
@@ -1260,14 +1444,35 @@ function HeadResults() {
       <div className="results-header">
         <h3>Submissions for: {selectedTest.title}</h3>
         <div className="results-actions">
-          <button 
-            className="btn btn-outline btn-sm" 
-            onClick={() => loadSubmissions(selectedTest.id)}
-            disabled={loading}
-          >
-            🔄 Refresh
-          </button>
-          <button className="btn btn-outline" onClick={() => setSelectedTest(null)}>← Back to Tests</button>
+          <div className="export-actions">
+            <button
+              className={`btn btn-outline btn-sm ${exporting ? 'btn-loading' : ''}`}
+              onClick={() => exportSubmissionsToExcel({ submissions, selectedTest, setLoading: setExporting })}
+              disabled={exporting || submissions.length === 0}
+              title="Export submissions to Excel"
+            >
+              <Icon name="notebook" size="small" /> Export Excel
+            </button>
+            <button
+              className={`btn btn-outline btn-sm ${exporting ? 'btn-loading' : ''}`}
+              onClick={() => exportSubmissionsToPDF({ submissions, selectedTest, setLoading: setExporting, exportType: 'head' })}
+              disabled={exporting || submissions.length === 0}
+              title="Export submissions to PDF"
+              style={{ marginLeft: '8px' }}
+            >
+              <Icon name="paper" size="small" /> Export PDF
+            </button>
+          </div>
+          <div className="refresh-actions">
+            <button 
+              className="btn btn-outline btn-sm" 
+              onClick={() => loadSubmissions(selectedTest.id)}
+              disabled={loading}
+            >
+              🔄 Refresh
+            </button>
+            <button className="btn btn-outline" onClick={() => setSelectedTest(null)}>← Back to Tests</button>
+          </div>
         </div>
       </div>
       

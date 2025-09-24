@@ -6,15 +6,21 @@ import { collection, getDocs, query, where, orderBy, addDoc, serverTimestamp, ge
 import { useFirebase } from '../../../context/FirebaseContext';
 import Loading from '../../Loading/Loading';
 import Leaderboard from '../../Leaderboard/Leaderboard';
+import BlockedSubmissionCard from '../../BlockedSubmissionCard/BlockedSubmissionCard';
+import Icon from '../../icons/Icon';
 import './UserDashboard.css';
 
 // Candidate Tests Component
 function CandidateTests() {
   const navigate = useNavigate();
+  const { user } = useFirebase();
   const [tests, setTests] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+  const [showBlockedCard, setShowBlockedCard] = useState(false);
+  const [blockMessage, setBlockMessage] = useState('');
+  const [checkingSubmissions, setCheckingSubmissions] = useState(false);
 
   useEffect(() => {
     const loadTests = async () => {
@@ -42,10 +48,10 @@ function CandidateTests() {
             return isActive && hasValidEndDate;
           });
         
-        // Deduplicate tests by title and domain
+        // Deduplicate tests by title and branch
         const testMap = new Map();
         testsData.forEach(test => {
-          const key = `${test.title}_${test.domain}`;
+          const key = `${test.title}_${test.branch}`;
           const existingTest = testMap.get(key);
           
           if (!existingTest) {
@@ -86,11 +92,70 @@ function CandidateTests() {
     loadTests();
   }, []);
 
+  // Function to check submissions before starting test
+  const checkSubmissionsAndStart = async (test) => {
+    if (!user) return;
+
+    setCheckingSubmissions(true);
+    try {
+      // Check existing submissions
+      const existingSubmissionsQuery = query(
+        collection(db, 'results'),
+        where('candidateId', '==', user.uid),
+        where('testId', '==', test.id)
+      );
+      const existingSubmissions = await getDocs(existingSubmissionsQuery);
+      const submissionCount = existingSubmissions.size;
+      
+      console.log('UserDashboard submission check:', {
+        submissionCount,
+        allowMultiple: test.allowMultipleSubmissions,
+        testId: test.id,
+        shouldBlock: submissionCount >= 3 && test.allowMultipleSubmissions,
+        attemptNumber: submissionCount + 1
+      });
+
+      // Logic based on submission count and settings
+      if (submissionCount === 0) {
+        // First attempt - proceed to test
+        console.log('First attempt - proceeding to test');
+        navigate(`/test/${test.id}`);
+      } else if (submissionCount > 0 && !test.allowMultipleSubmissions) {
+        // Not first attempt and multiple submissions not allowed - show blocked card
+        console.log('Multiple submissions not allowed - showing blocked card');
+        setBlockMessage(
+          `This test does not allow multiple submissions. You have already submitted this test ${submissionCount} time${submissionCount > 1 ? 's' : ''}. Please contact your branch head if you need to retake this test.`
+        );
+        setShowBlockedCard(true);
+      } else if (submissionCount > 0 && test.allowMultipleSubmissions) {
+        // Multiple submissions allowed - check limit (allow up to 3 total submissions)
+        if (submissionCount >= 3) {
+          console.log('Maximum attempts reached - showing blocked card');
+          setBlockMessage(
+            `You have reached the maximum number of attempts (3) for this test. You have already submitted this test ${submissionCount} times. Please contact your branch head if you need additional attempts.`
+          );
+          setShowBlockedCard(true);
+        } else {
+          // Within limit - proceed to test (submissions 2 and 3)
+          console.log(`Attempt ${submissionCount + 1}/3 - proceeding to test`);
+          navigate(`/test/${test.id}`);
+        }
+      }
+      
+    } catch (error) {
+      console.error('Error checking submission status:', error);
+      // On error, default to proceeding to test
+      navigate(`/test/${test.id}`);
+    } finally {
+      setCheckingSubmissions(false);
+    }
+  };
+
   const filteredTests = tests.filter(t => {
     const q = searchQuery.toLowerCase();
     return (
       t.title?.toLowerCase().includes(q) ||
-      t.domain?.toLowerCase().includes(q) ||
+      t.branch?.toLowerCase().includes(q) ||
       t.description?.toLowerCase().includes(q)
     );
   });
@@ -104,6 +169,13 @@ function CandidateTests() {
 
   return (
     <div className="candidate-tests">
+      {showBlockedCard && (
+        <BlockedSubmissionCard 
+          message={blockMessage} 
+          onClose={() => setShowBlockedCard(false)}
+        />
+      )}
+      
       <div className="search-container">
         <input
           type="text"
@@ -119,7 +191,7 @@ function CandidateTests() {
           <div key={test.id} className="test-card">
             <div className="test-header">
               <h3 className="test-title">{test.title}</h3>
-              <span className="badge badge-neutral">{test.domain}</span>
+              <span className="badge badge-neutral">{test.branch}</span>
             </div>
             <p className="test-description">{test.description || 'No description available'}</p>
             <div className="test-meta">
@@ -140,12 +212,11 @@ function CandidateTests() {
             <div className="test-actions">
               <button 
                 className="btn btn-primary test-start-btn"
-                onClick={() => {
-                    navigate(`/test/${test.id}`);
-                }}
+                onClick={() => checkSubmissionsAndStart(test)}
+                disabled={checkingSubmissions}
               >
-                <span className="btn-icon">🚀</span>
-                Start Test
+                <span className="btn-icon">{checkingSubmissions ? '⏳' : '🚀'}</span>
+                {checkingSubmissions ? 'Checking...' : 'Start Test'}
               </button>
               
               {test.password && (
@@ -222,7 +293,7 @@ function CandidateResults() {
       setError('');
       try {
         const resultsRef = collection(db, 'results');
-        // Only fetch results with status 'submitted' or 'evaluated'
+        // Fetch results with status 'submitted' or 'evaluated' only (exclude auto-submitted)
         const q = query(
           resultsRef, 
           where('candidateId', '==', user.uid),
@@ -265,8 +336,19 @@ function CandidateResults() {
           return timeB - timeA;
         });
         
-        setResults(resultsWithTestData);
-        setFilteredResults(resultsWithTestData); // Initialize filtered results
+        // Remove duplicate submissions - keep only the latest submission per test
+        const uniqueResults = [];
+        const seenTestIds = new Set();
+        
+        for (const result of resultsWithTestData) {
+          if (!seenTestIds.has(result.testId)) {
+            seenTestIds.add(result.testId);
+            uniqueResults.push(result);
+          }
+        }
+        
+        setResults(uniqueResults);
+        setFilteredResults(uniqueResults); // Initialize filtered results with unique results
       } catch (e) {
         console.log('[Candidate:loadResults:error]', e.code, e.message);
         setError(e.message || 'Failed to load results');
@@ -316,7 +398,7 @@ function CandidateResults() {
       ) : (
         <div className="results-grid">
           {filteredResults.map(result => (
-            <div key={result.id} className="result-card">
+            <div key={result.id} className={`result-card ${result.status === 'auto-submitted' ? 'auto-submitted' : ''}`}>
               <h3 className="result-title">
                 {result.testTitle || result.title || 'Test'}
               </h3>
@@ -328,7 +410,17 @@ function CandidateResults() {
               <div className="result-score-container">
                 <div className="score-display">
                   <span className="score-value">
-                    {result.score !== undefined ? result.score : '--'}
+                    {(() => {
+                      // Show actual marks awarded, not percentage
+                      if (result.totalMarksAwarded !== undefined && result.totalMarksAwarded !== null) {
+                        return result.totalMarksAwarded;
+                      } else if (result.score !== undefined && result.totalMarks !== undefined) {
+                        // Calculate actual marks from percentage
+                        return Math.round((result.score / 100) * result.totalMarks);
+                      } else {
+                        return '--';
+                      }
+                    })()}
                     <span className="score-divider">/</span>
                     <span className="score-total">
                       {result.totalMarks !== undefined ? result.totalMarks : '--'}
@@ -336,7 +428,8 @@ function CandidateResults() {
                   </span>
                 </div>
                 <div className="score-label">
-                  {result.status === 'evaluated' ? 'Score' : 'Submitted'}
+                  {result.status === 'evaluated' ? 'Score' : 
+                   result.status === 'auto-submitted' ? 'Auto-Submitted' : 'Submitted'}
                 </div>
               </div>
               {result.submittedAt && (
@@ -369,6 +462,7 @@ function UserDashboard() {
   const [activeTab, setActiveTab] = useState('tests');
   const { user, userDoc, loading: contextLoading } = useFirebase();
   const role = (userDoc?.role || 'candidate').toLowerCase();
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
 
   const themeClass = 'theme-candidate';
 
@@ -406,9 +500,51 @@ function UserDashboard() {
             <h1>Welcome, {userDoc?.name || user?.displayName || 'Candidate'}</h1>
             
           </div>
-          <button className="btn btn-outline" onClick={handleSignOut}>
-            Sign Out
-          </button>
+          <div className="header-actions" style={{ display: 'flex', alignItems: 'center', gap: '8px', position: 'relative' }}>
+            <button
+              className="btn btn-outline"
+              onClick={() => setShowProfileMenu((v) => !v)}
+              title="Open Profile Menu"
+            >
+              <Icon name="user" size="small" /> Profile
+            </button>
+
+            {showProfileMenu && (
+              <div
+                className="profile-menu"
+                style={{
+                  position: 'absolute',
+                  right: 0,
+                  top: '110%',
+                  background: '#fff',
+                  border: '1px solid #e5e7eb',
+                  borderRadius: 8,
+                  padding: 8,
+                  minWidth: 180,
+                  boxShadow: '0 10px 25px rgba(0,0,0,0.08)',
+                  zIndex: 15
+                }}
+              >
+                <button
+                  className="btn btn-ghost"
+                  style={{ width: '100%', textAlign: 'left', padding: '8px 10px' }}
+                  onClick={() => {
+                    setShowProfileMenu(false);
+                    navigate('/account');
+                  }}
+                >
+                  Account
+                </button>
+                <button
+                  className="btn btn-ghost"
+                  style={{ width: '100%', textAlign: 'left', padding: '8px 10px' }}
+                  onClick={handleSignOut}
+                >
+                  Sign Out
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { fetchTestWithQuestions, logPaste, logTabSwitch } from '../../services/firestore';
 import { useFirebase } from '../../context/FirebaseContext';
-import { addDoc, collection, serverTimestamp, doc, getDoc } from 'firebase/firestore';
+import { addDoc, collection, serverTimestamp, doc, getDoc, query, where, getDocs, updateDoc } from 'firebase/firestore';
 import { db } from '../../firebase';
 import Loading from '../Loading/Loading';
+import BlockedSubmissionCard from '../BlockedSubmissionCard/BlockedSubmissionCard';
 import './TestRunner.css';
 
 // Network monitoring function
@@ -20,6 +21,35 @@ const monitorConnection = async () => {
   }
 };
 
+// Helper function to parse duration string into total minutes
+const parseDurationToMinutes = (durationString) => {
+  if (!durationString) return 30;
+  
+  // Handle formats like "30 min", "1h", "1h 30min", "90 min"
+  const minMatch = durationString.match(/(\d+)\s*min/);
+  const hourMatch = durationString.match(/(\d+)h/);
+  
+  let totalMinutes = 0;
+  
+  if (hourMatch) {
+    totalMinutes += parseInt(hourMatch[1]) * 60;
+  }
+  
+  if (minMatch) {
+    totalMinutes += parseInt(minMatch[1]);
+  }
+  
+  // If no matches, try to parse as just minutes
+  if (!hourMatch && !minMatch) {
+    const numMatch = durationString.match(/(\d+)/);
+    if (numMatch) {
+      totalMinutes = parseInt(numMatch[1]);
+    }
+  }
+  
+  return totalMinutes || 30; // Default to 30 minutes if parsing fails
+};
+
 function TestRunner() {
   const { testId } = useParams();
   const navigate = useNavigate();
@@ -32,7 +62,6 @@ function TestRunner() {
   const [secondsLeft, setSecondsLeft] = useState(0);
   const [userAnswers, setUserAnswers] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [netStatus, setNetStatus] = useState('checking');
   const [tabSwitches, setTabSwitches] = useState(0);
   const [alerts, setAlerts] = useState([]);
   const [showAlert, setShowAlert] = useState(false);
@@ -40,6 +69,12 @@ function TestRunner() {
   const [password, setPassword] = useState('');
   const [showPasswordPrompt, setShowPasswordPrompt] = useState(false);
   const [passwordError, setPasswordError] = useState('');
+  const [netStatus, setNetStatus] = useState('checking');
+  const [showBlockedCard, setShowBlockedCard] = useState(false);
+  const [blockMessage, setBlockMessage] = useState('');
+  
+  // Ref to track if auto-submit has been triggered to prevent multiple submissions
+  const autoSubmitTriggered = useRef(false);
 
   const currentQuestion = useMemo(() => testData?.questions?.[current] || null, [testData, current]);
 
@@ -100,13 +135,22 @@ function TestRunner() {
       return;
     }
 
+    // Check if multiple submissions are allowed
+    const allowMultiple = testData?.allowMultipleSubmissions || false;
+    
     if (!isAutoSubmit) {
-      if (!window.confirm('Submit your test? This cannot be undone.')) {
+      let confirmMessage = 'Submit your test?';
+      if (allowMultiple) {
+        confirmMessage = 'Submit your test? You can submit again later if multiple submissions are enabled.';
+      } else {
+        confirmMessage = 'Submit your test? This cannot be undone.';
+      }
+      
+      if (!window.confirm(confirmMessage)) {
         console.log('User cancelled submission');
         return;
       }
     }
-
     setIsSubmitting(true);
     console.log('Starting submission process');
 
@@ -120,6 +164,20 @@ function TestRunner() {
         throw new Error('Missing test ID');
       }
 
+      // Check if multiple submissions are allowed
+      const allowMultiple = testData?.allowMultipleSubmissions || false;
+      
+      // Check for existing submissions
+      const existingSubmissionsQuery = query(
+        collection(db, 'results'),
+        where('candidateId', '==', user.uid),
+        where('testId', '==', testId)
+      );
+      const existingSubmissions = await getDocs(existingSubmissionsQuery);
+      
+      console.log('Existing submissions found:', existingSubmissions.size);
+      console.log('Multiple submissions allowed:', allowMultiple);
+      
       // Debug: Log the test data before calculating total marks
       console.log('Test data when submitting:', testData);
       
@@ -156,12 +214,35 @@ function TestRunner() {
       console.log('Submitting test with payload:', payload);
       console.log('User answers:', userAnswers);
 
-      // Direct Firestore submission
-      const docRef = await addDoc(collection(db, 'results'), payload);
+      // Handle submission based on multiple submission setting
+      // Enforce max 3 attempts when multiple submissions are allowed
+      if (allowMultiple && existingSubmissions.size >= 3) {
+        throw new Error('Maximum attempts reached. You have already submitted this test 3 times.');
+      } else if (existingSubmissions.size > 0 && allowMultiple) {
+        // Update the latest existing submission
+        const latestSubmission = existingSubmissions.docs[existingSubmissions.docs.length - 1];
+        await updateDoc(latestSubmission.ref, {
+          ...payload,
+          submissionNumber: existingSubmissions.size + 1,
+          previousSubmissionId: latestSubmission.id,
+          updatedAt: new Date()
+        });
+        console.log('Updated existing submission with ID:', latestSubmission.id);
+        // Show correct attempt number
+        alert(`Test re-submitted successfully! (Attempt #${existingSubmissions.size + 1})`);
+      } else if (existingSubmissions.size > 0 && !allowMultiple) {
+        // Multiple submissions not allowed, show error
+        throw new Error('You have already submitted this test. Multiple submissions are not allowed.');
+      } else {
+        // First submission or multiple submissions allowed
+        const docRef = await addDoc(collection(db, 'results'), {
+          ...payload,
+          submissionNumber: 1
+        });
+        console.log('Document written with ID:', docRef.id);
+        alert('Test submitted successfully!');
+      }
       
-      console.log('Document written with ID: ', docRef.id);
-      
-      alert('Test submitted successfully!');
       navigate('/dashboard');
       
     } catch (err) {
@@ -187,7 +268,8 @@ function TestRunner() {
 
   // Auto-submit for violations
   const autoSubmit = useCallback(async (reason) => {
-    if (isSubmitting) return;
+    if (isSubmitting || autoSubmitTriggered.current) return;
+    autoSubmitTriggered.current = true;
     setIsSubmitting(true);
     try {
       // Get the candidate's registered name from database
@@ -222,10 +304,10 @@ function TestRunner() {
           answers: Object.keys(userAnswers).length
         }
       });
-      alert(`Test auto-submitted (${reason}).`);
+      // Silently navigate back to dashboard after auto-submit
       navigate('/dashboard');
     } catch {
-      alert('Auto-submit failed. Contact admin.');
+      // Silent failure - user will see result in dashboard
     } finally {
       setIsSubmitting(false);
     }
@@ -237,7 +319,7 @@ function TestRunner() {
       setShowPasswordPrompt(false);
       setPasswordError('');
       // Start the timer only after successful password verification
-      const mins = parseInt(testData.duration) || 30;
+      const mins = parseDurationToMinutes(testData.duration);
       setSecondsLeft(mins * 60);
       setStartTime(new Date());
     } else {
@@ -270,6 +352,39 @@ function TestRunner() {
           })));
         }
         
+        // Check submission count and multiple submission settings BEFORE showing password
+        const allowMultiple = test.allowMultipleSubmissions || false;
+        const existingSubmissionsQuery = query(
+          collection(db, 'results'),
+          where('candidateId', '==', user.uid),
+          where('testId', '==', testId)
+        );
+        const existingSubmissions = await getDocs(existingSubmissionsQuery);
+        const submissionCount = existingSubmissions.size;
+        
+        console.log('TestRunner submission check:', {
+          submissionCount,
+          allowMultiple,
+          testId,
+          shouldBlock: submissionCount >= 3 && allowMultiple,
+          attemptNumber: submissionCount + 1
+        });
+        
+        if (submissionCount > 0 && !allowMultiple) {
+          // Multiple submissions not allowed
+          setBlockMessage(`This test does not allow multiple submissions. You have already submitted this test ${submissionCount} time${submissionCount > 1 ? 's' : ''}. Please contact your branch head if you need to retake this test.`);
+          setShowBlockedCard(true);
+          setIsLoading(false);
+          return;
+        } else if (submissionCount >= 3 && allowMultiple) {
+          // Multiple submissions allowed but limit reached (block after 3 submissions, not on 3rd)
+          setBlockMessage(`You have reached the maximum number of attempts (3) for this test. You have already submitted this test ${submissionCount} times. Please contact your branch head if you need additional attempts.`);
+          setShowBlockedCard(true);
+          setIsLoading(false);
+          return;
+        }
+        
+        // Only set test data and show password if submission limits are not exceeded
         setTestData(test);
         
         // Check if password is required
@@ -277,7 +392,7 @@ function TestRunner() {
           setShowPasswordPrompt(true);
         } else {
           // No password required, start the test
-          const mins = parseInt(test.duration) || 30;
+          const mins = parseDurationToMinutes(test.duration);
           setSecondsLeft(mins * 60);
           setStartTime(new Date());
         }
@@ -294,17 +409,24 @@ function TestRunner() {
   // Timer logic
   useEffect(() => {
     if (secondsLeft <= 0) return;
+    
     const interval = setInterval(() => {
       setSecondsLeft(prev => {
         if (prev <= 1) {
-          if (!isSubmitting) handleSubmit(true); // Auto-submit on time up
+          // Auto-submit when time runs out
+          if (!isSubmitting && !autoSubmitTriggered.current) {
+            console.log('Time up! Auto-submitting test...');
+            autoSubmitTriggered.current = true;
+            handleSubmit(true);
+          }
           return 0;
         }
         return prev - 1;
       });
     }, 1000);
+    
     return () => clearInterval(interval);
-  }, [secondsLeft, isSubmitting, handleSubmit]);
+  }, [secondsLeft]); // Removed handleSubmit and isSubmitting from dependencies to prevent re-renders
 
   // Network status polling
   useEffect(() => {
@@ -386,6 +508,11 @@ function TestRunner() {
 
   // UI helpers
   const formatTime = (s) => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+
+  // Blocked submission card
+  if (showBlockedCard) {
+    return <BlockedSubmissionCard message={blockMessage} />;
+  }
 
   // Password prompt modal
   if (showPasswordPrompt) {

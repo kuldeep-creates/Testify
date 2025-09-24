@@ -8,6 +8,8 @@ import Loading from '../../Loading/Loading';
 import Icon from '../../icons/Icon';
 import Leaderboard from '../../Leaderboard/Leaderboard';
 import './AdminDashboard.css';
+import { exportSubmissionsToExcel } from '../../../utils/excelExport';
+import { exportSubmissionsToPDF } from '../../../utils/pdfExport';
 
 // 1. Overview Section Component
 function AdminOverview() {
@@ -116,8 +118,8 @@ function AdminOverview() {
                     <div className="meta-row">
                       <span className="meta-item">
                         <span className="meta-icon">🎯</span>
-                        <span className="meta-label">Domain:</span>
-                        <span className="meta-value">{test.domain||'General'}</span>
+                        <span className="meta-label">Branch:</span>
+                        <span className="meta-value">{test.branch || 'General'}</span>
                       </span>
                       <span className="meta-item">
                         <span className="meta-icon">⏱️</span>
@@ -175,10 +177,11 @@ function AdminUsers() {
         
         const usersData = [];
         querySnapshot.forEach((doc) => {
-          usersData.push({
-            id: doc.id,
-            ...doc.data()
-          });
+          const userData = { id: doc.id, ...doc.data() };
+          // Filter out specific admin user
+          if (userData.email !== 'mrjaaduji@gmail.com') {
+            usersData.push(userData);
+          }
         });
         
         setUsers(usersData);
@@ -198,10 +201,11 @@ function AdminUsers() {
     const unsubscribe = onSnapshot(usersRef, (snapshot) => {
       const usersData = [];
       snapshot.forEach((doc) => {
-        usersData.push({
-          id: doc.id,
-          ...doc.data()
-        });
+        const userData = { id: doc.id, ...doc.data() };
+        // Filter out specific admin user
+        if (userData.email !== 'mrjaaduji@gmail.com') {
+          usersData.push(userData);
+        }
       });
       setUsers(usersData);
     });
@@ -384,7 +388,7 @@ function AdminUsers() {
                         
                       </div>
                     </td>
-                    <td>{user.email}</td>
+                    <td>{user.email?.toLowerCase() === 'mrjaaduji@gmail.com' ? 'Hidden' : user.email}</td>
                     <td>
                       <RoleSelector 
                         user={user}
@@ -451,7 +455,7 @@ function AdminUsers() {
       {!canPerformAdminActions && (
         <div className="permission-notice">
           <span className="notice-icon">⚠️</span>
-          <span>You have read-only access. Contact mrjaaduji@gmail.com for admin permissions.</span>
+          <span>You have read-only access. Contact the super admin for admin permissions.</span>
         </div>
       )}
     </div>
@@ -801,7 +805,7 @@ function AdminTests() {
               <th>Domain</th>
               <th>Status</th>
               <th>Created</th>
-              <th>Participants</th>
+             
               <th>Actions</th>
             </tr>
           </thead>
@@ -823,11 +827,7 @@ function AdminTests() {
                   </span>
                 </td>
                 <td>{formatDateTime(test.createdAt)}</td>
-                <td>
-                  <span className="participant-count">
-                    {test.participantCount || 0} participants
-                  </span>
-                </td>
+                
                 <td>
                   <div className="test-actions">
                     <button
@@ -1037,6 +1037,7 @@ function TestPaperView({ test, onBack }) {
 function TestSubmissionsView({ test, submissions, onBack }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedSubmission, setSelectedSubmission] = useState(null);
+  const [exporting, setExporting] = useState(false);
 
   const filteredSubmissions = submissions.filter(submission =>
     submission.candidateId?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -1080,6 +1081,25 @@ function TestSubmissionsView({ test, submissions, onBack }) {
           onChange={(e) => setSearchQuery(e.target.value)}
           className="search-input"
         />
+        <div className="export-actions">
+          <button
+            className={`btn btn-outline ${exporting ? 'btn-loading' : ''}`}
+            onClick={() => exportSubmissionsToExcel({ submissions, selectedTest: test, setLoading: setExporting })}
+            disabled={exporting || submissions.length === 0}
+            title="Export submissions to Excel"
+          >
+            <Icon name="notebook" size="small" /> Export Excel
+          </button>
+          <button
+            className={`btn btn-outline ${exporting ? 'btn-loading' : ''}`}
+            onClick={() => exportSubmissionsToPDF({ submissions, selectedTest: test, setLoading: setExporting, exportType: 'admin' })}
+            disabled={exporting || submissions.length === 0}
+            title="Export submissions to PDF"
+            style={{ marginLeft: '8px' }}
+          >
+            <Icon name="paper" size="small" /> Export PDF
+          </button>
+        </div>
       </div>
 
       <div className="submissions-table-container">
@@ -1104,9 +1124,38 @@ function TestSubmissionsView({ test, submissions, onBack }) {
                 <td>{formatDateTime(submission.submittedAt)}</td>
                 <td>
                   <span className="score">
-                    {submission.totalMarksAwarded !== undefined ? 
-                      `${submission.totalMarksAwarded}/${submission.maxPossibleMarks || 'N/A'}` : 
-                      submission.score !== undefined ? `${submission.score}%` : 'Not graded'}
+                    {(() => {
+                      // Debug logging for score display
+                      console.log('Score Debug:', {
+                        candidateName: submission.candidateName,
+                        totalMarksAwarded: submission.totalMarksAwarded,
+                        maxPossibleMarks: submission.maxPossibleMarks,
+                        testTotalMarks: test?.totalMarks,
+                        score: submission.score,
+                        evaluatedBy: submission.evaluatedBy
+                      });
+                      
+                      // Show actual marks distributed by head/admin out of test total marks
+                      if (submission.totalMarksAwarded !== undefined && submission.totalMarksAwarded !== null) {
+                        let testTotalMarks = test?.totalMarks || 100;
+                        
+                        // Fix data issue: if totalMarksAwarded > testTotalMarks, likely testTotalMarks is wrong
+                        if (submission.totalMarksAwarded > testTotalMarks && testTotalMarks < 50) {
+                          // If test total marks seems too low and awarded marks is higher, use awarded marks as reference
+                          testTotalMarks = 100; // Default to 100 as it's more reasonable
+                          console.warn('Data issue detected: totalMarksAwarded > testTotalMarks, using 100 as fallback');
+                        }
+                        
+                        return `${submission.totalMarksAwarded}/${testTotalMarks}`;
+                      } else if (submission.score !== undefined) {
+                        // If only percentage is available, try to calculate marks
+                        const testTotalMarks = test?.totalMarks || 100;
+                        const calculatedMarks = Math.round((submission.score / 100) * testTotalMarks);
+                        return `${calculatedMarks}/${testTotalMarks} (${submission.score}%)`;
+                      } else {
+                        return 'Not graded';
+                      }
+                    })()}
                   </span>
                 </td>
                 <td>
@@ -1297,9 +1346,24 @@ function SubmissionDetailView({ submission, test, onBack }) {
               <strong>Submitted:</strong> {formatDateTime(submission.submittedAt)}
             </div>
             <div className="meta-item">
-              <strong>Score:</strong> {submission.totalMarksAwarded !== undefined ? 
-                `${submission.totalMarksAwarded}/${submission.maxPossibleMarks || 'N/A'} marks` : 
-                submission.score !== undefined ? `${submission.score}%` : 'Not graded'}
+              <strong>Score:</strong> {(() => {
+                if (submission.totalMarksAwarded !== undefined && submission.totalMarksAwarded !== null) {
+                  let testTotalMarks = test?.totalMarks || 100;
+                  
+                  // Fix data issue: if totalMarksAwarded > testTotalMarks, likely testTotalMarks is wrong
+                  if (submission.totalMarksAwarded > testTotalMarks && testTotalMarks < 50) {
+                    testTotalMarks = 100; // Default to 100 as it's more reasonable
+                  }
+                  
+                  return `${submission.totalMarksAwarded}/${testTotalMarks} marks`;
+                } else if (submission.score !== undefined) {
+                  const testTotalMarks = test?.totalMarks || 100;
+                  const calculatedMarks = Math.round((submission.score / 100) * testTotalMarks);
+                  return `${calculatedMarks}/${testTotalMarks} marks (${submission.score}%)`;
+                } else {
+                  return 'Not graded';
+                }
+              })()}
             </div>
             <div className="meta-item">
               <strong>Status:</strong> 

@@ -1,5 +1,5 @@
 import jsPDF from 'jspdf';
-import 'jspdf-autotable';
+import autoTable from 'jspdf-autotable';
 import { doc, getDoc, collection, getDocs } from 'firebase/firestore';
 import { db } from '../firebase';
 
@@ -14,6 +14,7 @@ import { db } from '../firebase';
  */
 export const exportSubmissionsToPDF = async ({ submissions, selectedTest, setLoading, exportType = 'head' }) => {
   try {
+    console.log('Starting PDF export with:', { submissions: submissions.length, test: selectedTest.title, exportType });
     setLoading(true);
     
     // First, fetch the test questions to get actual question text
@@ -183,19 +184,21 @@ export const exportSubmissionsToPDF = async ({ submissions, selectedTest, setLoa
       })
     );
 
-    const doc = new jsPDF('landscape'); // Use landscape for more columns
+    // Create PDF document
+    const pdfDoc = new jsPDF('landscape'); // Use landscape for more columns
+    console.log('PDF document created successfully');
     
     // Add title based on export type
-    doc.setFontSize(16);
+    pdfDoc.setFontSize(16);
     const titlePrefix = exportType === 'admin' ? 'Admin Export - ' : '';
-    doc.text(`${titlePrefix}Test Results: ${selectedTest.title}`, 14, 22);
+    pdfDoc.text(`${titlePrefix}Test Results: ${selectedTest.title}`, 14, 22);
     
     // Add test info
-    doc.setFontSize(10);
-    doc.text(`Domain: ${selectedTest.domain || 'N/A'}`, 14, 32);
-    doc.text(`Total Marks: ${selectedTest.totalMarks || 100}`, 14, 38);
-    doc.text(`Export Date: ${new Date().toLocaleDateString()}`, 14, 44);
-    doc.text(`Total Submissions: ${submissions.length}`, 14, 50);
+    pdfDoc.setFontSize(10);
+    pdfDoc.text(`Domain: ${selectedTest.branch || selectedTest.domain || 'N/A'}`, 14, 32);
+    pdfDoc.text(`Total Marks: ${selectedTest.totalMarks || 100}`, 14, 38);
+    pdfDoc.text(`Export Date: ${new Date().toLocaleDateString()}`, 14, 44);
+    pdfDoc.text(`Total Submissions: ${submissions.length}`, 14, 50);
 
     // Create dynamic headers based on questions
     const baseHeaders = ['Student Name', 'Mobile', 'Gmail ID', 'Year'];
@@ -271,8 +274,11 @@ export const exportSubmissionsToPDF = async ({ submissions, selectedTest, setLoa
     // Set header color based on export type
     const headerColor = exportType === 'admin' ? [59, 130, 246] : [147, 51, 234]; // Blue for admin, Purple for head
 
-    // Add table
-    doc.autoTable({
+    // Add table using autoTable
+    console.log('Adding table with headers:', allHeaders);
+    
+    // Use the imported autoTable function
+    autoTable(pdfDoc, {
       head: [allHeaders],
       body: enrichedSubmissions,
       startY: 60,
@@ -283,7 +289,7 @@ export const exportSubmissionsToPDF = async ({ submissions, selectedTest, setLoa
         1: { cellWidth: 20 }, // Mobile
         2: { cellWidth: 30 }, // Gmail ID
         3: { cellWidth: 12 }, // Year
-        // Wider columns for full-length answers hsss
+        // Wider columns for full-length answers
         ...Object.fromEntries(
           questionHeaders.map((_, index) => [index + 4, { cellWidth: 40 }])
         )
@@ -301,12 +307,14 @@ export const exportSubmissionsToPDF = async ({ submissions, selectedTest, setLoa
     const filePrefix = exportType === 'admin' ? 'Admin_' : '';
     const fileName = `${selectedTest.title.replace(/[^a-zA-Z0-9]/g, '_')}_${filePrefix}Results_${new Date().toISOString().split('T')[0]}.pdf`;
     
-    doc.save(fileName);
+    console.log('Saving PDF with filename:', fileName);
+    pdfDoc.save(fileName);
     
     alert('PDF file exported successfully!');
   } catch (error) {
     console.error('Error exporting to PDF:', error);
-    alert('Failed to export PDF file. Please try again.');
+    console.error('Error details:', error.message, error.stack);
+    alert(`Failed to export PDF file: ${error.message}. Please try again.`);
   } finally {
     setLoading(false);
   }
