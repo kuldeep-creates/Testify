@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { fetchTestWithQuestions, logPaste, logTabSwitch } from '../../services/firestore';
+import { fetchTestWithQuestions } from '../../services/firestore';
 import { useFirebase } from '../../context/FirebaseContext';
-import { addDoc, collection, serverTimestamp, doc, getDoc, query, where, getDocs, updateDoc } from 'firebase/firestore';
+import { addDoc, collection, doc, getDoc, query, where, getDocs, updateDoc } from 'firebase/firestore';
 import { db } from '../../firebase';
 import Loading from '../Loading/Loading';
 import BlockedSubmissionCard from '../BlockedSubmissionCard/BlockedSubmissionCard';
@@ -426,7 +426,7 @@ function TestRunner() {
     }, 1000);
     
     return () => clearInterval(interval);
-  }, [secondsLeft]); // Removed handleSubmit and isSubmitting from dependencies to prevent re-renders
+  }, [secondsLeft, isSubmitting, autoSubmitTriggered, handleSubmit]);
 
   // Network status polling
   useEffect(() => {

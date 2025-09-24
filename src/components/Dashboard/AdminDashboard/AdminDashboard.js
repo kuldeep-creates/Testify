@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { signOut } from 'firebase/auth';
 import { auth, db } from '../../../firebase';
-import { collection, getDocs, onSnapshot, doc, updateDoc, deleteDoc, query, where, orderBy, serverTimestamp, getDoc } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, query, where, updateDoc, onSnapshot, serverTimestamp, deleteDoc } from 'firebase/firestore';
 import { useFirebase } from '../../../context/FirebaseContext';
 import Loading from '../../Loading/Loading';
 import Icon from '../../icons/Icon';

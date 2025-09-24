@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
+import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { auth, db } from '../../firebase';
 import { setDoc, doc, serverTimestamp } from 'firebase/firestore';
 import '../../components/Loading/Loading.css';
