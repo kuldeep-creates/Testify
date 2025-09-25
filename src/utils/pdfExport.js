@@ -19,45 +19,49 @@ export const exportSubmissionsToPDF = async ({ submissions, selectedTest, setLoa
     
     // First, fetch the test questions to get actual question text
     let testQuestions = [];
+    console.log('PDF: Starting question fetch for test ID:', selectedTest.id);
+    
     try {
-      const testDoc = await getDoc(doc(db, 'tests', selectedTest.id));
-      if (testDoc.exists()) {
-        const testData = testDoc.data();
-        testQuestions = testData.questions || [];
-        console.log('PDF: Found test questions from tests collection:', testQuestions);
-      } else {
-        console.log('PDF: Test document not found in tests collection');
+      // 1) Prefer the questions subcollection (source of truth)
+      console.log('PDF: Fetching questions from subcollection tests/{id}/questions');
+      const questionsSnapshot = await getDocs(collection(db, 'tests', selectedTest.id, 'questions'));
+      if (!questionsSnapshot.empty) {
+        testQuestions = questionsSnapshot.docs.map(qDoc => {
+          const data = qDoc.data();
+          return { id: data.questionId || qDoc.id, ...data };
+        });
+        console.log('PDF: Loaded questions from subcollection:', testQuestions);
       }
-      
-      // If no questions found, try alternative collection names
+
+      // 2) Fallback: embedded questions in tests doc
       if (testQuestions.length === 0) {
-        console.log('PDF: Trying alternative collection: test');
+        const testDoc = await getDoc(doc(db, 'tests', selectedTest.id));
+        if (testDoc.exists()) {
+          const testData = testDoc.data();
+          testQuestions = testData.questions || testData.Questions || testData.testQuestions || testData.questionsList || [];
+          if (testQuestions.length === 0 && testData.questions && typeof testData.questions === 'object' && !Array.isArray(testData.questions)) {
+            testQuestions = Object.values(testData.questions);
+          }
+          console.log('PDF: Loaded questions from tests doc:', testQuestions);
+        } else {
+          console.log('PDF: Test document not found in tests collection');
+        }
+      }
+
+      // 3) Legacy collection fallback
+      if (testQuestions.length === 0) {
         const altTestDoc = await getDoc(doc(db, 'test', selectedTest.id));
         if (altTestDoc.exists()) {
           const altTestData = altTestDoc.data();
           testQuestions = altTestData.questions || [];
-          console.log('PDF: Found test questions from test collection:', testQuestions);
+          console.log('PDF: Loaded questions from legacy collection:', testQuestions);
         }
       }
-      
-      // If still no questions, try to get from selectedTest object itself
+
+      // 4) Prop fallback
       if (testQuestions.length === 0 && selectedTest.questions) {
         testQuestions = selectedTest.questions;
-        console.log('PDF: Found test questions from selectedTest object:', testQuestions);
-      }
-      
-      // If still no questions, try to fetch from a questions subcollection
-      if (testQuestions.length === 0) {
-        console.log('PDF: Trying questions subcollection');
-        try {
-          const questionsSnapshot = await getDocs(collection(db, 'tests', selectedTest.id, 'questions'));
-          if (!questionsSnapshot.empty) {
-            testQuestions = questionsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            console.log('PDF: Found test questions from subcollection:', testQuestions);
-          }
-        } catch (subError) {
-          console.log('PDF: No questions subcollection found');
-        }
+        console.log('PDF: Loaded questions from selectedTest prop:', testQuestions);
       }
       
     } catch (error) {
@@ -108,8 +112,37 @@ export const exportSubmissionsToPDF = async ({ submissions, selectedTest, setLoa
           );
           
           if (testQuestions.length > 0) {
-            // Use test questions if available
-            testQuestions.forEach((question, index) => {
+            // Sort test questions by their original order to maintain sequence
+            const sortedQuestions = [...testQuestions].sort((a, b) => {
+              // Strategy 1: If questions have an 'order' or 'index' field, use that
+              if (a.order !== undefined && b.order !== undefined) {
+                return a.order - b.order;
+              }
+              if (a.index !== undefined && b.index !== undefined) {
+                return a.index - b.index;
+              }
+              
+              // Strategy 2: Sort by question ID if they're numeric
+              const aId = parseInt(a.id);
+              const bId = parseInt(b.id);
+              if (!isNaN(aId) && !isNaN(bId)) {
+                return aId - bId;
+              }
+              
+              // Strategy 3: Sort by creation timestamp if available
+              if (a.createdAt && b.createdAt) {
+                return a.createdAt - b.createdAt;
+              }
+              
+              // Strategy 4: Maintain original array order
+              return testQuestions.indexOf(a) - testQuestions.indexOf(b);
+            });
+            
+            console.log('PDF: Original questions order:', testQuestions.map(q => ({ id: q.id, text: q.questionText?.substring(0, 30) })));
+            console.log('PDF: Sorted questions order:', sortedQuestions.map(q => ({ id: q.id, text: q.questionText?.substring(0, 30) })));
+            
+            // Use sorted test questions to maintain sequence
+            sortedQuestions.forEach((question, index) => {
               const questionId = question.id;
               let answer = '';
               
@@ -129,10 +162,11 @@ export const exportSubmissionsToPDF = async ({ submissions, selectedTest, setLoa
               else {
                 const possibleKeys = answerKeys.filter(key => {
                   const keyLower = key.toLowerCase();
+                  const qidLower = String(questionId).toLowerCase();
                   return (keyLower === `q${index + 1}` || 
                           keyLower === `question${index + 1}` ||
                           keyLower === `question_${index + 1}` ||
-                          keyLower.includes(questionId.toLowerCase()) ||
+                          keyLower.includes(qidLower) ||
                           key === (index + 1).toString());
                 });
                 
@@ -206,62 +240,53 @@ export const exportSubmissionsToPDF = async ({ submissions, selectedTest, setLoa
     
     // Get question count from test and create short headers
     if (testQuestions.length > 0) {
-      testQuestions.forEach((question, index) => {
-        const shortHeader = question.questionText && question.questionText.length > 15 
-          ? `Q${index + 1}: ${question.questionText.substring(0, 15)}...`
+      // Sort test questions by their original order to maintain sequence (same logic as data processing)
+      const sortedQuestions = [...testQuestions].sort((a, b) => {
+        // Strategy 1: If questions have an 'order' or 'index' field, use that
+        if (a.order !== undefined && b.order !== undefined) {
+          return a.order - b.order;
+        }
+        if (a.index !== undefined && b.index !== undefined) {
+          return a.index - b.index;
+        }
+        
+        // Strategy 2: Sort by question ID if they're numeric
+        const aId = parseInt(a.id);
+        const bId = parseInt(b.id);
+        if (!isNaN(aId) && !isNaN(bId)) {
+          return aId - bId;
+        }
+        
+        // Strategy 3: Sort by creation timestamp if available
+        if (a.createdAt && b.createdAt) {
+          return a.createdAt - b.createdAt;
+        }
+        
+        // Strategy 4: Maintain original array order
+        return testQuestions.indexOf(a) - testQuestions.indexOf(b);
+      });
+      
+      sortedQuestions.forEach((question, index) => {
+        // Use full question text instead of truncated version
+        const fullHeader = question.questionText 
+          ? `Q${index + 1}: ${question.questionText}`
           : `Q${index + 1}`;
-        questionHeaders.push(shortHeader);
+        questionHeaders.push(fullHeader);
       });
     } else {
-      // If no test questions, use smart inference based on first submission's answers
+      // If no test questions, create neutral headers based on the first submission's answer count
+      console.log('PDF: No test questions found, using neutral headers');
       if (submissions.length > 0 && submissions[0].answers) {
         const answerKeys = Object.keys(submissions[0].answers).filter(key => 
           !key.includes('_notes') && 
           !key.includes('timestamp') && 
           !key.includes('metadata')
         );
-        
-        // Common question patterns for PDF headers (shorter for space)
-        const commonQuestions = [
-          "Favorite Language",
-          "C++ Program",
-          "Data Structures"
-        ];
-        
-        answerKeys.forEach((answerKey, index) => {
-          const answer = submissions[0].answers[answerKey];
-          let shortHeader = `Q${index + 1}`;
-          
-          if (answer && typeof answer === 'string') {
-            // Use common question patterns if they match the answer type
-            if (index < commonQuestions.length) {
-              if (answer.includes('#include') || answer.includes('int main') || answer.includes('cout') || answer.includes('printf')) {
-                shortHeader = commonQuestions[1]; // Programming question
-              } else if (answer.toLowerCase().includes('language') || answer.toLowerCase().includes('java') || answer.toLowerCase().includes('python') || answer.toLowerCase().includes('c++')) {
-                shortHeader = commonQuestions[0]; // Favorite language question
-              } else if (answer.toLowerCase().includes('data structure') || answer.toLowerCase().includes('algorithm')) {
-                shortHeader = commonQuestions[2]; // Data structures question
-              } else {
-                // Create header based on answer type/content
-                if (answer.includes('#include') || answer.includes('cout')) {
-                  shortHeader = `Code Q${index + 1}`;
-                } else if (answer.length < 20 && !answer.includes('\n')) {
-                  shortHeader = `Short Q${index + 1}`;
-                } else if (answer.length > 50) {
-                  shortHeader = `Essay Q${index + 1}`;
-                } else {
-                  shortHeader = `Q${index + 1}`;
-                }
-              }
-            } else {
-              shortHeader = `Q${index + 1}`;
-            }
-          }
-          
-          questionHeaders.push(shortHeader);
-        });
+        for (let i = 1; i <= answerKeys.length; i++) {
+          questionHeaders.push(`Q${i}`);
+        }
       } else {
-        // Default to 3 questions if we can't determine
+        // Default to 3 neutral headers if we can't determine
         for (let i = 1; i <= 3; i++) {
           questionHeaders.push(`Q${i}`);
         }

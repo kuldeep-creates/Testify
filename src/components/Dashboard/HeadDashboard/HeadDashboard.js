@@ -239,12 +239,20 @@ function HeadCreateTest() {
                 <div className="duration-inputs" style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
                     <input
-                      type="number"
+                      type="tel"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
                       min="0"
                       max="12"
                       className="form-input"
                       value={testData.durationHours}
-                      onChange={(e) => setTestData({...testData, durationHours: parseInt(e.target.value) || 0})}
+                      onChange={(e) => {
+                        const value = e.target.value.replace(/[^0-9]/g, ''); // Only allow numbers
+                        const numValue = parseInt(value) || 0;
+                        if (numValue <= 12) {
+                          setTestData({...testData, durationHours: numValue});
+                        }
+                      }}
                       placeholder="0"
                     />
                     <small style={{ color: '#6b7280', fontSize: '12px', marginTop: '4px' }}>Hours</small>
@@ -252,13 +260,20 @@ function HeadCreateTest() {
                   <span style={{ color: '#6b7280', fontWeight: 'bold' }}>:</span>
                   <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
                     <input
-                      type="number"
+                      type="tel"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
                       min="0"
                       max="59"
-                      step="5"
                       className="form-input"
                       value={testData.durationMinutes}
-                      onChange={(e) => setTestData({...testData, durationMinutes: parseInt(e.target.value) || 0})}
+                      onChange={(e) => {
+                        const value = e.target.value.replace(/[^0-9]/g, ''); // Only allow numbers
+                        const numValue = parseInt(value) || 0;
+                        if (numValue <= 59) {
+                          setTestData({...testData, durationMinutes: numValue});
+                        }
+                      }}
                       placeholder="30"
                     />
                     <small style={{ color: '#6b7280', fontSize: '12px', marginTop: '4px' }}>Minutes</small>
@@ -458,12 +473,20 @@ function HeadCreateTest() {
                   <div className="form-group">
                     <label>Marks</label>
                     <input
-                      type="number"
+                      type="tel"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
                       className="form-input"
                       min="1"
                       max="100"
                       value={questions[qIndex].marks}
-                      onChange={(e) => updateQuestion(questions[qIndex].id, 'marks', parseInt(e.target.value) || 1)}
+                      onChange={(e) => {
+                        const value = e.target.value.replace(/[^0-9]/g, ''); // Only allow numbers
+                        const numValue = parseInt(value) || 1;
+                        if (numValue >= 1 && numValue <= 100) {
+                          updateQuestion(questions[qIndex].id, 'marks', numValue);
+                        }
+                      }}
                     />
                     <div className="form-help">Points awarded for correct answer</div>
                   </div>
@@ -1202,6 +1225,20 @@ function HeadResults() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [exporting, setExporting] = useState(false);
+  const [editingTest, setEditingTest] = useState(null);
+  const [editStep, setEditStep] = useState(1);
+  const [editTestData, setEditTestData] = useState({
+    title: '',
+    description: '',
+    duration: '30 min',
+    durationHours: 0,
+    durationMinutes: 30,
+    password: '',
+    allowMultipleSubmissions: false
+  });
+  const [editQuestions, setEditQuestions] = useState([]);
+  const [editQIndex, setEditQIndex] = useState(0);
+  const [editLoading, setEditLoading] = useState(false);
   const { userDoc } = useFirebase();
 
   useEffect(() => {
@@ -1209,10 +1246,26 @@ function HeadResults() {
       setLoading(true);
       setError('');
       try {
+        console.log('HeadResults: Loading tests for branch:', userDoc?.branch);
+        console.log('HeadResults: User doc:', userDoc);
         const testsRef = collection(db, 'tests');
+        
+        // Try branch-specific query first
         const testsQuery = query(testsRef, where('branch', '==', userDoc?.branch || 'Full Stack'));
         const testsSnap = await getDocs(testsQuery);
-        const testsData = testsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+        let testsData = testsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+        
+        console.log('HeadResults: Found tests by branch:', testsData.length);
+        
+        // If no tests found by branch, try loading all tests
+        if (testsData.length === 0) {
+          console.log('HeadResults: No tests found by branch, loading all tests');
+          const allTestsSnap = await getDocs(testsRef);
+          testsData = allTestsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+          console.log('HeadResults: Found all tests:', testsData.length);
+        }
+        
+        console.log('HeadResults: Final tests:', testsData);
         setTests(testsData);
       } catch (e) {
         console.log('[Head:loadTests:error]', e.code, e.message);
@@ -1222,10 +1275,13 @@ function HeadResults() {
       }
     };
     
-    if (userDoc?.domain) {
+    if (userDoc) {
+      console.log('HeadResults: User doc available, loading tests');
       loadTests();
+    } else {
+      console.log('HeadResults: No user doc available');
     }
-  }, [userDoc?.domain]);
+  }, [userDoc]);
 
   const loadSubmissions = async (testId) => {
     setLoading(true);
@@ -1380,6 +1436,83 @@ function HeadResults() {
     }
   };
 
+  // Test Management Functions
+  const toggleTestStatus = async (testId, currentStatus) => {
+    try {
+      const newStatus = currentStatus === 'active' ? 'closed' : 'active';
+      await updateDoc(doc(db, 'tests', testId), { status: newStatus });
+      setTests(tests.map(t => t.id === testId ? { ...t, status: newStatus } : t));
+      alert(`Test ${newStatus === 'active' ? 'activated' : 'closed'} successfully!`);
+    } catch (e) {
+      console.log('[Head:toggleStatus:error]', e.code, e.message);
+      setError('Failed to update test status');
+    }
+  };
+
+  const deleteTest = async (testId, testTitle) => {
+    const confirmDelete = window.confirm(
+      `Are you sure you want to delete "${testTitle}"?\n\n` +
+      `This action cannot be undone and will permanently remove:\n` +
+      `• The test and all its questions\n` +
+      `• All student submissions\n` +
+      `• All related data\n\n` +
+      `This action is irreversible!`
+    );
+    
+    if (!confirmDelete) return;
+    
+    try {
+      // Delete test document
+      await deleteDoc(doc(db, 'tests', testId));
+      
+      // Delete all submissions for this test
+      const resultsQuery = query(collection(db, 'results'), where('testId', '==', testId));
+      const resultsSnap = await getDocs(resultsQuery);
+      const deletePromises = resultsSnap.docs.map(doc => deleteDoc(doc.ref));
+      await Promise.all(deletePromises);
+      
+      // Update local state
+      setTests(tests.filter(t => t.id !== testId));
+      if (selectedTest?.id === testId) {
+        setSelectedTest(null);
+        setSubmissions([]);
+      }
+      
+      alert(`Test "${testTitle}" and all related data deleted successfully!`);
+    } catch (e) {
+      console.log('[Head:deleteTest:error]', e.code, e.message);
+      setError('Failed to delete test');
+      alert('Failed to delete test. Please try again.');
+    }
+  };
+
+  const handleEditTest = (test) => {
+    // Parse duration for editing
+    const parseDuration = (duration) => {
+      const match = duration.match(/(\d+)h?\s*(\d+)?m?/);
+      if (match) {
+        const hours = parseInt(match[1]) || 0;
+        const minutes = parseInt(match[2]) || 0;
+        return { hours, minutes };
+      }
+      return { hours: 0, minutes: 30 };
+    };
+    
+    const { hours, minutes } = parseDuration(test.duration || '30min');
+    
+    setEditTestData({
+      title: test.title || '',
+      description: test.description || '',
+      duration: test.duration || '30min',
+      durationHours: hours,
+      durationMinutes: minutes,
+      password: test.password || '',
+      allowMultipleSubmissions: test.allowMultipleSubmissions || false
+    });
+    setEditingTest(test);
+    setEditStep(1);
+  };
+
   // If viewing individual submission
   if (selectedSubmission) {
     return (
@@ -1452,6 +1585,39 @@ function HeadResults() {
               title="Export submissions to Excel"
             >
               <Icon name="notebook" size="small" /> Export Excel
+            </button>
+            <button
+              className="btn btn-outline btn-sm"
+              onClick={async () => {
+                console.log('=== DEBUG TEST STRUCTURE ===');
+                console.log('Selected Test Object:', selectedTest);
+                console.log('Selected Test ID:', selectedTest.id);
+                console.log('Selected Test Questions:', selectedTest.questions);
+                
+                // Try to fetch test from Firestore
+                try {
+                  const testDoc = await getDoc(doc(db, 'tests', selectedTest.id));
+                  if (testDoc.exists()) {
+                    const testData = testDoc.data();
+                    console.log('Firestore Test Data:', testData);
+                    console.log('Available Fields:', Object.keys(testData));
+                    console.log('Questions Field:', testData.questions);
+                  } else {
+                    console.log('Test document not found in Firestore');
+                  }
+                } catch (error) {
+                  console.error('Error fetching test:', error);
+                }
+                
+                console.log('Sample Submission:', submissions[0]);
+                if (submissions[0]?.answers) {
+                  console.log('Answer Keys:', Object.keys(submissions[0].answers));
+                }
+                console.log('=== END DEBUG ===');
+              }}
+              title="Debug Test Structure"
+            >
+              🔍 Debug
             </button>
             <button
               className={`btn btn-outline btn-sm ${exporting ? 'btn-loading' : ''}`}

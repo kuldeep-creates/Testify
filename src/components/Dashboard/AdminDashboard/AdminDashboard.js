@@ -163,6 +163,14 @@ function AdminUsers() {
   const [currentPage, setCurrentPage] = useState(1);
   const { user: currentUser } = useFirebase();
   const usersPerPage = 10;
+  // User details view state
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [detailsLoading, setDetailsLoading] = useState(false);
+  const [userDetails, setUserDetails] = useState({
+    submissions: [],
+    pasteLogs: [],
+    tabSwitchLogs: [],
+  });
 
   // Check if current user can perform admin actions
   const canPerformAdminActions = currentUser?.email?.toLowerCase() === 'mrjaaduji@gmail.com' || 
@@ -225,13 +233,11 @@ function AdminUsers() {
         role: newRole,
         updatedAt: serverTimestamp()
       };
-      
       if (newRole === 'head' && newDomain) {
         updateData.domain = newDomain;
       } else if (newRole !== 'head') {
         updateData.domain = null;
       }
-
       await updateDoc(userRef, updateData);
     } catch (err) {
       console.error('Error updating user role:', err);
@@ -256,6 +262,88 @@ function AdminUsers() {
       setError('Failed to update user status: ' + err.message);
     }
   };
+
+  // Open user details and fetch related data
+  const viewUserDetails = async (user) => {
+    setSelectedUser(user);
+    setDetailsLoading(true);
+    try {
+      // Fetch submissions for the user
+      const submissionsQuery = query(
+        collection(db, 'results'),
+        where('candidateId', '==', user.id)
+      );
+      const submissionsSnap = await getDocs(submissionsQuery);
+      let submissions = submissionsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+      // Sort latest first
+      submissions.sort((a, b) => {
+        const ta = (a.submittedAt?.toDate?.() || a.createdAt?.toDate?.() || new Date(0)).getTime();
+        const tb = (b.submittedAt?.toDate?.() || b.createdAt?.toDate?.() || new Date(0)).getTime();
+        return tb - ta;
+      });
+
+      // Attach test titles for readability
+      const testIds = Array.from(new Set(submissions.map(s => s.testId).filter(Boolean)));
+      const testTitleMap = {};
+      for (const tId of testIds) {
+        try {
+          const tSnap = await getDoc(doc(db, 'tests', tId));
+          if (tSnap.exists()) testTitleMap[tId] = tSnap.data().title || tId;
+        } catch (_) {}
+      }
+      submissions = submissions.map(s => ({ ...s, _testTitle: testTitleMap[s.testId] || s.testId }));
+
+      // Fetch paste logs
+      const pasteQueryRef = query(
+        collection(db, 'pasteLogs'),
+        where('candidateId', '==', user.id)
+      );
+      const pasteSnap = await getDocs(pasteQueryRef);
+      const pasteLogs = pasteSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+      // Fetch tab switch logs
+      const tabQueryRef = query(
+        collection(db, 'tabSwitchLogs'),
+        where('candidateId', '==', user.id)
+      );
+      const tabSnap = await getDocs(tabQueryRef);
+      const tabSwitchLogs = tabSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+      // Compute aggregates: total tests and average score (percentage)
+      let avgScore = 0;
+      if (submissions.length > 0) {
+        const sumPct = submissions.reduce((sum, s) => {
+          const awarded = Number(s.totalMarksAwarded || 0);
+          const max = Number(s.maxPossibleMarks || 0) || 100;
+          const pct = Math.max(0, Math.min(100, (awarded / max) * 100));
+          return sum + pct;
+        }, 0);
+        avgScore = Math.round((sumPct / submissions.length) * 100) / 100; // round to 2 decimals
+      }
+
+      setUserDetails({ submissions, pasteLogs, tabSwitchLogs, avgScore, totalTestsGiven: submissions.length });
+    } catch (err) {
+      console.error('Error loading user details:', err);
+    } finally {
+      setDetailsLoading(false);
+    }
+  };
+
+  // Close details panel
+  const closeUserDetails = () => {
+    setSelectedUser(null);
+    setUserDetails({ submissions: [], pasteLogs: [], tabSwitchLogs: [] });
+  };
+
+  // Close on Escape key when details are open
+  useEffect(() => {
+    if (!selectedUser) return;
+    const onKey = (e) => {
+      if (e.key === 'Escape') closeUserDetails();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [selectedUser]);
 
   const filteredUsers = users.filter(user => {
     const matchesSearch = user.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -381,14 +469,38 @@ function AdminUsers() {
               </thead>
               <tbody>
                 {currentUsers.map(user => (
-                  <tr key={user.id}>
+                  <tr key={user.id} onDoubleClick={() => viewUserDetails(user)} title="Double-click to view details">
                     <td>
                       <div className="user-info">
-                        <span className="user-name">{user.name || 'N/A'}</span>
+                        <span
+                          className="user-name user-link"
+                          onClick={() => viewUserDetails(user)}
+                          title="View user details"
+                          role="button"
+                          tabIndex={0}
+                          onKeyDown={(e) => { if (e.key === 'Enter') viewUserDetails(user); }}
+                        >
+                          {user.name || 'N/A'}
+                        </span>
                         
                       </div>
                     </td>
-                    <td>{user.email?.toLowerCase() === 'mrjaaduji@gmail.com' ? 'Hidden' : user.email}</td>
+                    <td>
+                      {user.email?.toLowerCase() === 'mrjaaduji@gmail.com' ? (
+                        'Hidden'
+                      ) : (
+                        <span
+                          className="user-link"
+                          onClick={() => viewUserDetails(user)}
+                          role="button"
+                          tabIndex={0}
+                          title="View user details"
+                          onKeyDown={(e) => { if (e.key === 'Enter') viewUserDetails(user); }}
+                        >
+                          {user.email}
+                        </span>
+                      )}
+                    </td>
                     <td>
                       <RoleSelector 
                         user={user}
@@ -410,6 +522,7 @@ function AdminUsers() {
                     </td>
                     <td>
                       <div className="user-actions">
+                        
                         <button
                           className={`btn btn-sm ${user.blocked ? 'btn-success' : 'btn-danger'}`}
                           onClick={() => handleBlockToggle(user.id, user.blocked)}
@@ -449,6 +562,113 @@ function AdminUsers() {
             </div>
           )}
         </>
+      )}
+
+      {/* User Details Panel */}
+      {selectedUser && (
+        <div
+          className="user-details-overlay"
+          role="dialog"
+          aria-modal="true"
+          onClick={(e) => { if (e.target === e.currentTarget) closeUserDetails(); }}
+        >
+          <div className="user-details-panel">
+            <div className="user-details-header">
+              <h3>User Details</h3>
+              <button className="btn btn-sm btn-outline" onClick={closeUserDetails} aria-label="Close">✕</button>
+            </div>
+            <div className="user-details-body">
+              <div className="user-summary">
+                <p><strong>Name:</strong> {selectedUser.name || 'N/A'}</p>
+                <p><strong>Email:</strong> {selectedUser.email || 'N/A'}</p>
+                <p><strong>Role:</strong> {selectedUser.role || 'candidate'}</p>
+                <p><strong>Domain:</strong> {selectedUser.domain || '-'}</p>
+                <p><strong>Mobile No:</strong> {selectedUser.mobile || selectedUser.phone || '-'}</p>
+                <p><strong>Total Tests Given:</strong> {userDetails.totalTestsGiven ?? userDetails.submissions.length}</p>
+                <p><strong>Average Marks:</strong> {userDetails.avgScore != null ? `${userDetails.avgScore}%` : '-'}</p>
+                <p><strong>Status:</strong> {selectedUser.blocked ? 'Blocked' : 'Active'}</p>
+              </div>
+
+              {detailsLoading ? (
+                <div className="loading-tests">
+                  <Loading message="Loading user details" subtext="Fetching submissions and activity" variant="inline" size="large" />
+                </div>
+              ) : (
+                <>
+                  <div className="user-stats">
+                    <div className="stat-card"><div className="stat-content"><h4>Total Submissions</h4><p className="stat-number">{userDetails.submissions.length}</p></div></div>
+                    <div className="stat-card"><div className="stat-content"><h4>Paste Logs</h4><p className="stat-number">{userDetails.pasteLogs.length}</p></div></div>
+                    <div className="stat-card"><div className="stat-content"><h4>Tab Switch Logs</h4><p className="stat-number">{userDetails.tabSwitchLogs.length}</p></div></div>
+                  </div>
+
+                  <div className="user-section">
+                    <h4>Recent Submissions</h4>
+                    {userDetails.submissions.length === 0 ? (
+                      <p className="text-muted">No submissions yet.</p>
+                    ) : (
+                      <table className="users-table">
+                        <thead>
+                          <tr>
+                            <th>Test</th>
+                            <th>Status</th>
+                            <th>Submitted At</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {userDetails.submissions.slice(0, 5).map(s => (
+                            <tr key={s.id}>
+                              <td>{s._testTitle || s.testId || '-'}</td>
+                              <td>{s.status || '-'}</td>
+                              <td>{(s.submittedAt?.toDate?.() || s.createdAt?.toDate?.() || null)?.toLocaleString?.() || '-'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )}
+                  </div>
+
+                  <div className="user-section">
+                    <h4>Activity</h4>
+                    <div className="activity-grid">
+                      <div>
+                        <h5>Paste Logs</h5>
+                        {userDetails.pasteLogs.length === 0 ? (
+                          <p className="text-muted">No paste activity.</p>
+                        ) : (
+                          <ul className="simple-list">
+                            {userDetails.pasteLogs.slice(0, 5).map(p => (
+                              <li key={p.id}>
+                                <span>Test: {p.testId || '-'}</span>
+                                <span style={{ marginLeft: 8 }}>Q: {p.questionId || '-'}</span>
+                                <span style={{ marginLeft: 8 }}>{(p.timestamp?.toDate?.() || null)?.toLocaleString?.() || '-'}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                      <div>
+                        <h5>Tab Switch Logs</h5>
+                        {userDetails.tabSwitchLogs.length === 0 ? (
+                          <p className="text-muted">No tab switching recorded.</p>
+                        ) : (
+                          <ul className="simple-list">
+                            {userDetails.tabSwitchLogs.slice(0, 5).map(t => (
+                              <li key={t.id}>
+                                <span>Test: {t.testId || '-'}</span>
+                                <span style={{ marginLeft: 8 }}>Count: {t.switchCount || 0}</span>
+                                <span style={{ marginLeft: 8 }}>{(t.lastUpdated?.toDate?.() || null)?.toLocaleString?.() || '-'}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Permission Notice */}
@@ -1038,8 +1258,17 @@ function TestSubmissionsView({ test, submissions, onBack }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedSubmission, setSelectedSubmission] = useState(null);
   const [exporting, setExporting] = useState(false);
+  const { user: currentUser } = useFirebase();
+  const [localSubmissions, setLocalSubmissions] = useState(submissions || []);
 
-  const filteredSubmissions = submissions.filter(submission =>
+  useEffect(() => {
+    setLocalSubmissions(submissions || []);
+  }, [submissions]);
+
+  const canDeleteSubmissions = (currentUser?.role === 'admin') || (currentUser?.role === 'head') ||
+    (currentUser?.email?.toLowerCase?.() === 'mrjaaduji@gmail.com');
+
+  const filteredSubmissions = localSubmissions.filter(submission =>
     submission.candidateId?.toLowerCase().includes(searchQuery.toLowerCase()) ||
     submission.candidateName?.toLowerCase().includes(searchQuery.toLowerCase())
   );
@@ -1048,6 +1277,74 @@ function TestSubmissionsView({ test, submissions, onBack }) {
     if (!timestamp) return 'N/A';
     const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
     return date.toLocaleString();
+  };
+
+  const handleDeleteSubmission = async (submission) => {
+    if (!canDeleteSubmissions) {
+      alert('You do not have permission to delete submissions');
+      return;
+    }
+    const confirmDelete = window.confirm(
+      `Delete submission for "${submission.candidateName || submission.candidateId}"?\n\n` +
+      `This will permanently remove:\n` +
+      `• Their test result for "${test.title}"\n` +
+      `• All monitoring logs for this test attempt\n` +
+      `• All paste/tab switch logs for this test\n\n` +
+      `This action cannot be undone. Continue?`
+    );
+    if (!confirmDelete) return;
+
+    try {
+      console.log('Deleting submission and related data for:', submission.candidateId, 'test:', test.id);
+      
+      // 1. Delete the main submission result
+      await deleteDoc(doc(db, 'results', submission.id));
+      console.log('✅ Deleted main submission');
+
+      // 2. Delete monitoring logs for this candidate and test
+      const monitoringQuery = query(
+        collection(db, 'monitoring'),
+        where('candidateId', '==', submission.candidateId),
+        where('testId', '==', test.id)
+      );
+      const monitoringSnapshot = await getDocs(monitoringQuery);
+      const monitoringDeletes = monitoringSnapshot.docs.map(doc => deleteDoc(doc.ref));
+      await Promise.all(monitoringDeletes);
+      console.log(`✅ Deleted ${monitoringSnapshot.size} monitoring logs`);
+
+      // 3. Delete paste logs for this candidate and test
+      const pasteQuery = query(
+        collection(db, 'pasteLogs'),
+        where('candidateId', '==', submission.candidateId),
+        where('testId', '==', test.id)
+      );
+      const pasteSnapshot = await getDocs(pasteQuery);
+      const pasteDeletes = pasteSnapshot.docs.map(doc => deleteDoc(doc.ref));
+      await Promise.all(pasteDeletes);
+      console.log(`✅ Deleted ${pasteSnapshot.size} paste logs`);
+
+      // 4. Delete tab switch logs for this candidate and test
+      const tabSwitchQuery = query(
+        collection(db, 'tabSwitchLogs'),
+        where('candidateId', '==', submission.candidateId),
+        where('testId', '==', test.id)
+      );
+      const tabSwitchSnapshot = await getDocs(tabSwitchQuery);
+      const tabSwitchDeletes = tabSwitchSnapshot.docs.map(doc => deleteDoc(doc.ref));
+      await Promise.all(tabSwitchDeletes);
+      console.log(`✅ Deleted ${tabSwitchSnapshot.size} tab switch logs`);
+
+      // 5. Update local UI
+      setLocalSubmissions(prev => prev.filter(s => s.id !== submission.id));
+      setSelectedSubmission(null);
+      
+      const totalDeleted = 1 + monitoringSnapshot.size + pasteSnapshot.size + tabSwitchSnapshot.size;
+      alert(`Submission and all related data deleted successfully!\n\nDeleted ${totalDeleted} records total:\n• 1 submission result\n• ${monitoringSnapshot.size} monitoring logs\n• ${pasteSnapshot.size} paste logs\n• ${tabSwitchSnapshot.size} tab switch logs`);
+      
+    } catch (error) {
+      console.error('Error deleting submission and related data:', error);
+      alert('Failed to delete submission: ' + (error.message || 'Unknown error'));
+    }
   };
 
   // If viewing individual submission
@@ -1069,7 +1366,7 @@ function TestSubmissionsView({ test, submissions, onBack }) {
         </button>
         <div className="submissions-info">
           <h2>Submissions: {test.title}</h2>
-          <p>{submissions.length} total submissions</p>
+          <p>{localSubmissions.length} total submissions</p>
         </div>
       </div>
 
@@ -1084,16 +1381,16 @@ function TestSubmissionsView({ test, submissions, onBack }) {
         <div className="export-actions">
           <button
             className={`btn btn-outline ${exporting ? 'btn-loading' : ''}`}
-            onClick={() => exportSubmissionsToExcel({ submissions, selectedTest: test, setLoading: setExporting })}
-            disabled={exporting || submissions.length === 0}
+            onClick={() => exportSubmissionsToExcel({ submissions: localSubmissions, selectedTest: test, setLoading: setExporting })}
+            disabled={exporting || localSubmissions.length === 0}
             title="Export submissions to Excel"
           >
             <Icon name="notebook" size="small" /> Export Excel
           </button>
           <button
             className={`btn btn-outline ${exporting ? 'btn-loading' : ''}`}
-            onClick={() => exportSubmissionsToPDF({ submissions, selectedTest: test, setLoading: setExporting, exportType: 'admin' })}
-            disabled={exporting || submissions.length === 0}
+            onClick={() => exportSubmissionsToPDF({ submissions: localSubmissions, selectedTest: test, setLoading: setExporting, exportType: 'admin' })}
+            disabled={exporting || localSubmissions.length === 0}
             title="Export submissions to PDF"
             style={{ marginLeft: '8px' }}
           >
@@ -1171,6 +1468,16 @@ function TestSubmissionsView({ test, submissions, onBack }) {
                   >
                     <Icon name="computer" size="small" /> View
                   </button>
+                  {canDeleteSubmissions && (
+                    <button
+                      className="btn btn-sm btn-danger"
+                      title="Delete Submission"
+                      style={{ marginLeft: '0.5rem' }}
+                      onClick={() => handleDeleteSubmission(submission)}
+                    >
+                      <Icon name="fire" size="small" /> Delete
+                    </button>
+                  )}
                 </td>
               </tr>
             ))}
@@ -1547,6 +1854,7 @@ function AdminMonitoring() {
   const [participants, setParticipants] = useState([]);
   const [selectedParticipant, setSelectedParticipant] = useState(null);
   const [monitoringData, setMonitoringData] = useState([]);
+  const [participantMonitoring, setParticipantMonitoring] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -1561,6 +1869,7 @@ function AdminMonitoring() {
         setLoading(false);
       },
       (err) => {
+        console.error('Error loading tests for monitoring:', err);
         setError('Failed to load tests');
         setLoading(false);
       }
@@ -1571,78 +1880,144 @@ function AdminMonitoring() {
 
   const loadParticipants = async (testId) => {
     try {
+      // Set up real-time listener for participants
       const participantsQuery = query(
         collection(db, 'results'),
         where('testId', '==', testId)
       );
-      const snapshot = await getDocs(participantsQuery);
-      const participantsData = await Promise.all(snapshot.docs.map(async (resultDoc) => {
-        const participantData = { id: resultDoc.id, ...resultDoc.data() };
-        
-        // Process candidate name - handle emails stored in candidateName field
-        if (participantData.candidateName && participantData.candidateName.includes('@')) {
-          // If candidateName is an email, extract the username part
-          participantData.candidateName = participantData.candidateName.split('@')[0];
-        } else if (participantData.candidateId) {
-          // Try to get better name from user database
-          try {
-            // Try to get user by Firebase UID
-            let userDoc = await getDoc(doc(db, 'user', participantData.candidateId));
-            
-            if (userDoc.exists()) {
-              const userData = userDoc.data();
+      
+      const unsubscribeParticipants = onSnapshot(participantsQuery, async (snapshot) => {
+        const participantsData = await Promise.all(snapshot.docs.map(async (resultDoc) => {
+          const participantData = { id: resultDoc.id, ...resultDoc.data() };
+          
+          // Process candidate name - handle emails stored in candidateName field
+          if (participantData.candidateName && participantData.candidateName.includes('@')) {
+            // If candidateName is an email, extract the username part
+            participantData.candidateName = participantData.candidateName.split('@')[0];
+          } else if (participantData.candidateId) {
+            // Try to get better name from user database
+            try {
+              // Try to get user by Firebase UID
+              let userDoc = await getDoc(doc(db, 'user', participantData.candidateId));
               
-              // Use the best available name
-              if (userData.name) {
-                participantData.candidateName = userData.name;
-              } else if (userData.displayName) {
-                participantData.candidateName = userData.displayName;
-              } else if (userData.fullName) {
-                participantData.candidateName = userData.fullName;
-              } else if (userData.firstName) {
-                participantData.candidateName = userData.firstName;
-              } else if (userData.email) {
-                // If we have email, extract the prefix
-                participantData.candidateName = userData.email.includes('@') ? userData.email.split('@')[0] : userData.email;
+              if (userDoc.exists()) {
+                const userData = userDoc.data();
+                
+                // Use the best available name
+                if (userData.name) {
+                  participantData.candidateName = userData.name;
+                } else if (userData.displayName) {
+                  participantData.candidateName = userData.displayName;
+                } else if (userData.fullName) {
+                  participantData.candidateName = userData.fullName;
+                } else if (userData.firstName) {
+                  participantData.candidateName = userData.firstName;
+                } else if (userData.email) {
+                  // If we have email, extract the prefix
+                  participantData.candidateName = userData.email.includes('@') ? userData.email.split('@')[0] : userData.email;
+                }
+              } else {
+                // Fallback to using last 4 chars of UID
+                participantData.candidateName = `Candidate ${participantData.candidateId.slice(-4)}`;
               }
-            } else {
+            } catch (error) {
+              console.error('Error fetching candidate name:', error);
               // Fallback to using last 4 chars of UID
               participantData.candidateName = `Candidate ${participantData.candidateId.slice(-4)}`;
             }
-          } catch (error) {
-            console.error('Error fetching candidate name:', error);
-            // Fallback to using last 4 chars of UID
-            participantData.candidateName = `Candidate ${participantData.candidateId.slice(-4)}`;
           }
-        }
+          
+          // Final fallback
+          if (!participantData.candidateName) {
+            participantData.candidateName = 'Unknown';
+          }
+          
+          return participantData;
+        }));
         
-        // Final fallback
-        if (!participantData.candidateName) {
-          participantData.candidateName = 'Unknown';
-        }
+        setParticipants(participantsData);
         
-        return participantData;
-      }));
-      setParticipants(participantsData);
+        // Load monitoring data for all participants
+        loadAllMonitoringData(testId, participantsData);
+      });
+      
+      // Store the unsubscribe function for cleanup
+      return unsubscribeParticipants;
     } catch (err) {
+      console.error('Error loading participants:', err);
       setError('Failed to load participants');
+    }
+  };
+  
+  const loadAllMonitoringData = async (testId, participantsData) => {
+    console.log('🔍 ADMIN MONITORING: Loading monitoring data for test:', testId);
+    console.log('🔍 ADMIN MONITORING: Participants:', participantsData.map(p => ({ id: p.id, candidateId: p.candidateId, name: p.candidateName })));
+    
+    try {
+      const monitoringPromises = participantsData.map(async (participant) => {
+        if (!participant.candidateId) {
+          console.log('🔍 ADMIN MONITORING: Skipping participant without candidateId:', participant.id);
+          return { [participant.id]: {} };
+        }
+        
+        console.log(`🔍 ADMIN MONITORING: Querying monitoring for candidate ${participant.candidateId}`);
+        
+        const monitoringQuery = query(
+          collection(db, 'monitoring'),
+          where('candidateId', '==', participant.candidateId),
+          where('testId', '==', testId)
+        );
+        
+        const snapshot = await getDocs(monitoringQuery);
+        const events = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        
+        console.log(`🔍 ADMIN MONITORING: Found ${events.length} events for candidate ${participant.candidateId}:`, events);
+        
+        // Aggregate monitoring data
+        const aggregatedData = {
+          tabSwitches: events.filter(e => e.type === 'tab_switch' || e.type === 'visibility_change'),
+          copyEvents: events.filter(e => e.type === 'copy'),
+          pasteEvents: events.filter(e => e.type === 'paste'),
+          totalViolations: events.length,
+          lastActivity: events.length > 0 ? Math.max(...events.map(e => e.timestamp?.toMillis() || 0)) : null
+        };
+        
+        console.log(`🔍 ADMIN MONITORING: Aggregated data for ${participant.candidateId}:`, aggregatedData);
+        
+        return { [participant.id]: aggregatedData };
+      });
+      
+      const results = await Promise.all(monitoringPromises);
+      const monitoringMap = results.reduce((acc, curr) => ({ ...acc, ...curr }), {});
+      
+      console.log('🔍 ADMIN MONITORING: Final monitoring map:', monitoringMap);
+      setParticipantMonitoring(monitoringMap);
+    } catch (err) {
+      console.error('❌ ADMIN MONITORING: Error loading monitoring data:', err);
     }
   };
 
   const loadMonitoringData = async (candidateId, testId) => {
     try {
+      // Set up real-time listener for specific participant monitoring data
       const monitoringQuery = query(
         collection(db, 'monitoring'),
         where('candidateId', '==', candidateId),
-        where('testId', '==', testId)
+        where('testId', '==', testId),
+        orderBy('timestamp', 'desc')
       );
-      const snapshot = await getDocs(monitoringQuery);
-      const monitoringData = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      setMonitoringData(monitoringData);
+      
+      const unsubscribeMonitoring = onSnapshot(monitoringQuery, (snapshot) => {
+        const events = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+        setMonitoringData(events);
+      });
+      
+      return unsubscribeMonitoring;
     } catch (err) {
+      console.error('Error loading monitoring data:', err);
       setError('Failed to load monitoring data');
     }
   };
@@ -1650,6 +2025,7 @@ function AdminMonitoring() {
   const selectTest = (test) => {
     setSelectedTest(test);
     setSelectedParticipant(null);
+    setParticipantMonitoring({});
     loadParticipants(test.id);
   };
 
@@ -1659,14 +2035,26 @@ function AdminMonitoring() {
   };
 
   const getSuspiciousActivityCount = (participant) => {
-    const tabSwitches = participant.tabSwitchCount || 0;
-    const copyEvents = participant.copyEvents?.length || 0;
-    const pasteEvents = participant.pasteEvents?.length || 0;
+    const monitoring = participantMonitoring[participant.id] || {};
+    const tabSwitches = monitoring.tabSwitches?.length || 0;
+    const copyEvents = monitoring.copyEvents?.length || 0;
+    const pasteEvents = monitoring.pasteEvents?.length || 0;
     return tabSwitches + copyEvents + pasteEvents;
   };
 
   const isSuspicious = (participant) => {
-    return getSuspiciousActivityCount(participant) > 5;
+    return getSuspiciousActivityCount(participant) > 3; // Lowered threshold for better detection
+  };
+  
+  const getMonitoringStats = (participant) => {
+    const monitoring = participantMonitoring[participant.id] || {};
+    return {
+      tabSwitches: monitoring.tabSwitches?.length || 0,
+      copyEvents: monitoring.copyEvents?.length || 0,
+      pasteEvents: monitoring.pasteEvents?.length || 0,
+      totalViolations: monitoring.totalViolations || 0,
+      lastActivity: monitoring.lastActivity
+    };
   };
 
   if (loading) return (
@@ -1727,23 +2115,27 @@ function AdminMonitoring() {
                     </div>
                   </td>
                   <td>
-                    <span className={`badge ${participant.blocked ? 'badge-error' : 'badge-success'}`}>
-                      {participant.blocked ? 'Blocked' : 'Active'}
+                    <span className={`badge ${participant.status === 'blocked' || participant.blocked ? 'badge-error' : 
+                      participant.status === 'in_progress' || participant.status === 'active' ? 'badge-success' : 'badge-neutral'}`}>
+                      {participant.status === 'blocked' || participant.blocked ? 'Blocked' : 
+                       participant.status === 'in_progress' ? 'In Progress' :
+                       participant.status === 'active' ? 'Active' :
+                       participant.status === 'completed' ? 'Completed' : 'Unknown'}
                     </span>
                   </td>
                   <td>
-                    <span className={`activity-count ${(participant.tabSwitchCount || 0) > 3 ? 'high' : ''}`}>
-                      {participant.tabSwitchCount || 0}
+                    <span className={`activity-count ${getMonitoringStats(participant).tabSwitches > 2 ? 'high' : ''}`}>
+                      {getMonitoringStats(participant).tabSwitches}
                     </span>
                   </td>
                   <td>
-                    <span className={`activity-count ${(participant.copyEvents?.length || 0) > 2 ? 'high' : ''}`}>
-                      {participant.copyEvents?.length || 0}
+                    <span className={`activity-count ${getMonitoringStats(participant).copyEvents > 1 ? 'high' : ''}`}>
+                      {getMonitoringStats(participant).copyEvents}
                     </span>
                   </td>
                   <td>
-                    <span className={`activity-count ${(participant.pasteEvents?.length || 0) > 2 ? 'high' : ''}`}>
-                      {participant.pasteEvents?.length || 0}
+                    <span className={`activity-count ${getMonitoringStats(participant).pasteEvents > 1 ? 'high' : ''}`}>
+                      {getMonitoringStats(participant).pasteEvents}
                     </span>
                   </td>
                   <td>
@@ -1825,19 +2217,259 @@ function AdminMonitoring() {
   );
 }
 
+// Helper function to get question name from ID
+function getQuestionName(questionId, testData = null, storedQuestionText = null) {
+  if (!questionId) return 'Unknown Question';
+  
+  // If we have stored question text from monitoring data, use it directly
+  if (storedQuestionText && storedQuestionText !== 'Question text not available') {
+    const cleanText = storedQuestionText
+      .replace(/<[^>]*>/g, '') // Remove HTML tags
+      .replace(/\s+/g, ' ') // Replace multiple spaces with single space
+      .trim();
+    const shortText = cleanText.slice(0, 100);
+    return `"${shortText}${cleanText.length > 100 ? '...' : ''}"`;
+  }
+  
+  console.log('🔍 Getting question name for:', questionId, 'Test data:', testData?.questions?.length);
+  console.log('🔍 Available questions:', testData?.questions?.map(q => ({ id: q.id, hasQuestionText: !!q.questionText, hasQuestion: !!q.question, hasText: !!q.text })));
+  console.log('🔍 All question IDs:', testData?.questions?.map(q => q.id));
+  console.log('🔍 Question ID types:', testData?.questions?.map(q => ({ id: q.id, type: typeof q.id })));
+  console.log('🔍 Looking for ID type:', typeof questionId);
+  
+  // Show available question texts for debugging
+  if (testData?.questions?.length > 0) {
+    console.log('🔍 Available question texts:', testData.questions.map(q => ({ 
+      id: q.id, 
+      text: (q.questionText || q.question || q.text || 'No text').substring(0, 50) + '...' 
+    })));
+  }
+  
+  // Handle notes fields (e.g., "1758793866121_notes")
+  if (questionId.includes('_notes')) {
+    const baseQuestionId = questionId.replace('_notes', '');
+    
+    // Try to find the actual question text
+    if (testData?.questions) {
+      // First try exact ID match
+      let question = testData.questions.find(q => q.id === baseQuestionId);
+      console.log('🔍 Found question for notes (exact match):', question);
+      
+      // If no exact match, try partial ID match
+      if (!question) {
+        question = testData.questions.find(q => q.id.includes(baseQuestionId) || baseQuestionId.includes(q.id));
+        console.log('🔍 Found question for notes (partial match):', question);
+      }
+      
+      // If still no match, try string conversion and different ID formats
+      if (!question) {
+        const baseQuestionIdStr = String(baseQuestionId);
+        question = testData.questions.find(q => 
+          String(q.id) === baseQuestionIdStr || 
+          String(q.id).includes(baseQuestionIdStr) || 
+          baseQuestionIdStr.includes(String(q.id))
+        );
+        console.log('🔍 Found question for notes (string match):', question);
+      }
+      
+      console.log('🔍 Notes question properties:', question ? Object.keys(question) : 'No question found');
+      
+      // Try multiple possible question text properties
+      const questionText = question?.questionText || question?.question || question?.text;
+      console.log('🔍 Notes question text found:', questionText ? questionText.substring(0, 50) + '...' : 'No text found');
+      
+      if (questionText) {
+        // Clean the question text and make it more readable
+        const cleanText = questionText
+          .replace(/<[^>]*>/g, '') // Remove HTML tags
+          .replace(/\s+/g, ' ') // Replace multiple spaces with single space
+          .trim();
+        const shortText = cleanText.slice(0, 80);
+        return `"${shortText}${cleanText.length > 80 ? '...' : ''}" (Notes Field)`;
+      }
+    }
+    
+    return `Question ${baseQuestionId.slice(0, 8)}... (Notes Field)`;
+  }
+  
+  // Try to find the actual question text
+  if (testData?.questions) {
+    // First try exact ID match
+    let question = testData.questions.find(q => q.id === questionId);
+    console.log('🔍 Found question (exact match):', question);
+    
+    // If no exact match, try partial ID match (in case of ID variations)
+    if (!question) {
+      question = testData.questions.find(q => q.id.includes(questionId) || questionId.includes(q.id));
+      console.log('🔍 Found question (partial match):', question);
+    }
+    
+    // If still no match, try string conversion and different ID formats
+    if (!question) {
+      const questionIdStr = String(questionId);
+      console.log('🔍 Trying string conversion - looking for:', questionIdStr);
+      console.log('🔍 Available IDs as strings:', testData.questions.map(q => String(q.id)));
+      
+      question = testData.questions.find(q => 
+        String(q.id) === questionIdStr || 
+        String(q.id).includes(questionIdStr) || 
+        questionIdStr.includes(String(q.id))
+      );
+      console.log('🔍 Found question (string match):', question);
+    }
+    
+    // If still no match, try to find by any partial match
+    if (!question) {
+      console.log('🔍 Trying any partial match...');
+      for (let i = 0; i < testData.questions.length; i++) {
+        const q = testData.questions[i];
+        console.log(`🔍 Comparing "${questionId}" with "${q.id}" (${typeof q.id})`);
+        if (String(q.id) === String(questionId)) {
+          question = q;
+          console.log('🔍 Found exact match!', question);
+          break;
+        }
+      }
+    }
+    
+    // If still no match, try to find by timestamp similarity (for timestamp-based IDs)
+    if (!question && questionId.length > 10) {
+      console.log('🔍 Trying timestamp-based matching...');
+      const targetTimestamp = parseInt(questionId);
+      if (!isNaN(targetTimestamp)) {
+        // Find the closest timestamp match
+        let closestQuestion = null;
+        let smallestDiff = Infinity;
+        
+        for (const q of testData.questions) {
+          const qTimestamp = parseInt(q.id);
+          if (!isNaN(qTimestamp)) {
+            const diff = Math.abs(targetTimestamp - qTimestamp);
+            if (diff < smallestDiff) {
+              smallestDiff = diff;
+              closestQuestion = q;
+            }
+          }
+        }
+        
+        // If the difference is reasonable (within 1 hour = 3600000 ms), use it
+        if (closestQuestion && smallestDiff < 3600000) {
+          question = closestQuestion;
+          console.log('🔍 Found timestamp-based match!', { 
+            target: questionId, 
+            found: question.id, 
+            diff: smallestDiff,
+            question: question.questionText?.substring(0, 50) + '...'
+          });
+        }
+      }
+    }
+    
+    console.log('🔍 Question properties:', question ? Object.keys(question) : 'No question found');
+    
+    // Try multiple possible question text properties
+    const questionText = question?.questionText || question?.question || question?.text;
+    console.log('🔍 Question text found:', questionText ? questionText.substring(0, 50) + '...' : 'No text found');
+    
+    if (questionText) {
+      // Clean the question text and make it more readable
+      const cleanText = questionText
+        .replace(/<[^>]*>/g, '') // Remove HTML tags
+        .replace(/\s+/g, ' ') // Replace multiple spaces with single space
+        .trim();
+      const shortText = cleanText.slice(0, 100);
+      return `"${shortText}${cleanText.length > 100 ? '...' : ''}"`;
+    }
+  }
+  
+  // For regular question IDs, show in a readable format
+  if (questionId.length > 10) {
+    // If it's a long ID (timestamp-based), show it as "Question [first few digits]"
+    console.log('🔍 Falling back to ID display for:', questionId);
+    console.log('🔍 This question ID does not exist in current test data');
+    
+    // Try to show a helpful message with available questions
+    if (testData?.questions?.length > 0) {
+      const firstQuestion = testData.questions[0];
+      const firstQuestionText = firstQuestion?.questionText || firstQuestion?.question || firstQuestion?.text;
+      if (firstQuestionText) {
+        console.log('🔍 Showing first available question as reference:', firstQuestionText.substring(0, 50) + '...');
+        return ` ${firstQuestionText.substring(0, 50)}${firstQuestionText.length > 50 ? '...' : ''}`;
+      }
+    }
+    
+    return `Question ${questionId.slice(0, 8)}... (ID not found in current test)`;
+  }
+  
+  // For shorter IDs, show as is
+  console.log('🔍 Using short ID display for:', questionId);
+  return `Question ${questionId} (ID not found in current test)`;
+}
+
 // Participant Detail View Component
 function ParticipantDetailView({ participant, test, monitoringData, onBack }) {
   const [activeTab, setActiveTab] = useState('overview');
+  const [testWithQuestions, setTestWithQuestions] = useState(null);
+
+  // Load complete test data with questions
+  useEffect(() => {
+    const loadTestQuestions = async () => {
+      if (!test?.id) return;
+      
+      try {
+        console.log('🔍 Loading test questions for:', test.id);
+        const testQuery = query(
+          collection(db, 'tests'),
+          where('__name__', '==', test.id)
+        );
+        const testSnapshot = await getDocs(testQuery);
+        
+        if (!testSnapshot.empty) {
+          const testDoc = testSnapshot.docs[0];
+          const testData = { id: testDoc.id, ...testDoc.data() };
+          
+          // Load questions subcollection
+          const questionsQuery = collection(db, 'tests', test.id, 'questions');
+          const questionsSnapshot = await getDocs(questionsQuery);
+          const questions = questionsSnapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+          }));
+          
+          testData.questions = questions;
+          setTestWithQuestions(testData);
+          console.log('✅ Loaded test with questions:', testData);
+        }
+      } catch (error) {
+        console.error('Error loading test questions:', error);
+        // Fallback to using the test data we have
+        setTestWithQuestions(test);
+      }
+    };
+
+    loadTestQuestions();
+  }, [test]);
 
   const formatDateTime = (timestamp) => {
     if (!timestamp) return 'N/A';
-    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+    // Handle both Firestore timestamp and regular timestamp
+    const date = timestamp.toDate ? timestamp.toDate() : 
+                 timestamp.seconds ? new Date(timestamp.seconds * 1000) :
+                 new Date(timestamp);
     return date.toLocaleString();
   };
 
-  const tabSwitches = participant.tabSwitches || [];
-  const copyEvents = participant.copyEvents || [];
-  const pasteEvents = participant.pasteEvents || [];
+  // Process monitoring data by type
+  const tabSwitches = monitoringData.filter(event => 
+    event.type === 'tab_switch' || event.type === 'visibility_change' || event.type === 'focus_lost'
+  );
+  const copyEvents = monitoringData.filter(event => event.type === 'copy');
+  const pasteEvents = monitoringData.filter(event => event.type === 'paste');
+  
+  // Additional monitoring events
+  const keyboardEvents = monitoringData.filter(event => event.type === 'keyboard_shortcut');
+  const rightClickEvents = monitoringData.filter(event => event.type === 'right_click');
+  const fullscreenEvents = monitoringData.filter(event => event.type === 'fullscreen_exit');
 
   return (
     <div className="participant-detail-view">
@@ -1876,6 +2508,12 @@ function ParticipantDetailView({ participant, test, monitoringData, onBack }) {
         >
           Paste Events ({pasteEvents.length})
         </button>
+        <button 
+          className={`tab ${activeTab === 'violations' ? 'active' : ''}`}
+          onClick={() => setActiveTab('violations')}
+        >
+          All Violations ({monitoringData.length})
+        </button>
       </div>
 
       <div className="detail-content">
@@ -1898,9 +2536,31 @@ function ParticipantDetailView({ participant, test, monitoringData, onBack }) {
                     <span className="stat-value">{pasteEvents.length}</span>
                   </div>
                   <div className="stat-item">
+                    <span className="stat-label">Total Violations:</span>
+                    <span className="stat-value">{monitoringData.length}</span>
+                  </div>
+                  <div className="stat-item">
+                    <span className="stat-label">Keyboard Shortcuts:</span>
+                    <span className="stat-value">{keyboardEvents.length}</span>
+                  </div>
+                  <div className="stat-item">
+                    <span className="stat-label">Right Clicks:</span>
+                    <span className="stat-value">{rightClickEvents.length}</span>
+                  </div>
+                  <div className="stat-item">
                     <span className="stat-label">Status:</span>
-                    <span className={`badge ${participant.blocked ? 'badge-error' : 'badge-success'}`}>
-                      {participant.blocked ? 'Blocked' : 'Active'}
+                    <span className={`badge ${participant.status === 'blocked' || participant.blocked ? 'badge-error' : 
+                      participant.status === 'in_progress' || participant.status === 'active' ? 'badge-success' : 'badge-neutral'}`}>
+                      {participant.status === 'blocked' || participant.blocked ? 'Blocked' : 
+                       participant.status === 'in_progress' ? 'In Progress' :
+                       participant.status === 'active' ? 'Active' :
+                       participant.status === 'completed' ? 'Completed' : 'Unknown'}
+                    </span>
+                  </div>
+                  <div className="stat-item">
+                    <span className="stat-label">Risk Level:</span>
+                    <span className={`badge ${monitoringData.length > 5 ? 'badge-error' : monitoringData.length > 2 ? 'badge-warning' : 'badge-success'}`}>
+                      {monitoringData.length > 5 ? '🔴 High Risk' : monitoringData.length > 2 ? '🟡 Medium Risk' : '🟢 Low Risk'}
                     </span>
                   </div>
                 </div>
@@ -1911,15 +2571,30 @@ function ParticipantDetailView({ participant, test, monitoringData, onBack }) {
 
         {activeTab === 'tabswitches' && (
           <div className="tabswitches-tab">
-            <h3>Tab Switch Events</h3>
+            <h3>Tab Switch & Focus Events</h3>
             {tabSwitches.length === 0 ? (
-              <p>No tab switch events recorded</p>
+              <div className="no-events">
+                <p>✅ No tab switch events recorded - Good behavior!</p>
+              </div>
             ) : (
               <div className="events-list">
                 {tabSwitches.map((event, index) => (
-                  <div key={index} className="event-item">
-                    <span className="event-time">{formatDateTime(event.timestamp)}</span>
-                    <span className="event-description">Tab switched away from test</span>
+                  <div key={index} className="event-item violation-event">
+                    <div className="event-header">
+                      <span className="event-time">{formatDateTime(event.timestamp)}</span>
+                      <span className="event-type">{event.type === 'tab_switch' ? '🔄 Tab Switch' : 
+                        event.type === 'visibility_change' ? '👁️ Window Hidden' : '🎯 Focus Lost'}</span>
+                    </div>
+                    <div className="event-details">
+                      <span className="event-description">
+                        {event.type === 'tab_switch' ? 'Switched to another tab/window' :
+                         event.type === 'visibility_change' ? 'Test window was hidden or minimized' :
+                         'Lost focus from the test interface'}
+                      </span>
+                      {event.duration && (
+                        <span className="event-duration">Duration: {Math.round(event.duration / 1000)}s</span>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -1931,15 +2606,23 @@ function ParticipantDetailView({ participant, test, monitoringData, onBack }) {
           <div className="copy-tab">
             <h3>Copy Events</h3>
             {copyEvents.length === 0 ? (
-              <p>No copy events recorded</p>
+              <div className="no-events">
+                <p>✅ No copy events recorded - Good behavior!</p>
+              </div>
             ) : (
               <div className="events-list">
                 {copyEvents.map((event, index) => (
-                  <div key={index} className="event-item">
-                    <span className="event-time">{formatDateTime(event.timestamp)}</span>
+                  <div key={index} className="event-item violation-event">
+                    <div className="event-header">
+                      <span className="event-time">{formatDateTime(event.timestamp)}</span>
+                      <span className="event-type">📋 Copy Event</span>
+                    </div>
                     <div className="event-content">
-                      <span className="event-description">Content copied:</span>
-                      <pre className="copied-content">{event.content}</pre>
+                      <span className="event-description">Content copied from {event.source || 'unknown source'}:</span>
+                      <pre className="copied-content">{event.content || event.data || 'Content not recorded'}</pre>
+                      {event.questionId && (
+                        <span className="event-context">From Question: {getQuestionName(event.questionId, testWithQuestions, event.questionText)}</span>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -1952,15 +2635,72 @@ function ParticipantDetailView({ participant, test, monitoringData, onBack }) {
           <div className="paste-tab">
             <h3>Paste Events</h3>
             {pasteEvents.length === 0 ? (
-              <p>No paste events recorded</p>
+              <div className="no-events">
+                <p>✅ No paste events recorded - Good behavior!</p>
+              </div>
             ) : (
               <div className="events-list">
                 {pasteEvents.map((event, index) => (
-                  <div key={index} className="event-item">
-                    <span className="event-time">{formatDateTime(event.timestamp)}</span>
+                  <div key={index} className="event-item violation-event">
+                    <div className="event-header">
+                      <span className="event-time">{formatDateTime(event.timestamp)}</span>
+                      <span className="event-type">📌 Paste Event</span>
+                    </div>
                     <div className="event-content">
-                      <span className="event-description">Content pasted in {event.field}:</span>
-                      <pre className="pasted-content">{event.content}</pre>
+                      <span className="event-description">Content pasted into {event.field || event.target || 'answer field'}:</span>
+                      <pre className="pasted-content">{event.content || event.data || 'Content not recorded'}</pre>
+                      {event.questionId && (
+                        <span className="event-context">Into Question: {getQuestionName(event.questionId, testWithQuestions, event.questionText)}</span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'violations' && (
+          <div className="violations-tab">
+            <h3>All Security Violations</h3>
+            {monitoringData.length === 0 ? (
+              <div className="no-events">
+                <p>✅ No violations recorded - Excellent behavior!</p>
+              </div>
+            ) : (
+              <div className="events-list">
+                {monitoringData.map((event, index) => (
+                  <div key={index} className="event-item violation-event">
+                    <div className="event-header">
+                      <span className="event-time">{formatDateTime(event.timestamp)}</span>
+                      <span className="event-type">
+                        {event.type === 'tab_switch' ? '🔄 Tab Switch' :
+                         event.type === 'copy' ? '📋 Copy' :
+                         event.type === 'paste' ? '📌 Paste' :
+                         event.type === 'keyboard_shortcut' ? '⌨️ Shortcut' :
+                         event.type === 'right_click' ? '🖱️ Right Click' :
+                         event.type === 'fullscreen_exit' ? '📺 Fullscreen Exit' :
+                         event.type === 'visibility_change' ? '👁️ Window Hidden' :
+                         `⚠️ ${event.type}`}
+                      </span>
+                    </div>
+                    <div className="event-content">
+                      <span className="event-description">
+                        {event.description || 
+                         (event.type === 'tab_switch' ? 'Switched away from test' :
+                          event.type === 'copy' ? 'Copied content' :
+                          event.type === 'paste' ? 'Pasted content' :
+                          event.type === 'keyboard_shortcut' ? `Used shortcut: ${event.shortcut || 'Unknown'}` :
+                          event.type === 'right_click' ? 'Right-clicked on page' :
+                          event.type === 'fullscreen_exit' ? 'Exited fullscreen mode' :
+                          'Security violation detected')}
+                      </span>
+                      {(event.content || event.data) && (
+                        <pre className="event-data">{event.content || event.data}</pre>
+                      )}
+                      {event.questionId && (
+                        <span className="event-context">Question: {getQuestionName(event.questionId, testWithQuestions, event.questionText)}</span>
+                      )}
                     </div>
                   </div>
                 ))}
