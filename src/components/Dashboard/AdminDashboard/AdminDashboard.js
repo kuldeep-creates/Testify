@@ -1,6 +1,6 @@
 import { signOut } from 'firebase/auth';
-import { collection, getDocs, onSnapshot, doc, updateDoc, deleteDoc, query, where, orderBy, serverTimestamp, getDoc } from 'firebase/firestore';
-import React, { useState, useEffect, useMemo } from 'react';
+import { collection, deleteDoc, doc, getDoc, getDocs, onSnapshot, query, serverTimestamp, updateDoc, where } from 'firebase/firestore';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { appConfig } from '../../../config/environment';
@@ -31,7 +31,7 @@ function AdminOverview() {
     const unsubTests = onSnapshot(testsQuery, async (snapshot) => {
       const testsData = await Promise.all(snapshot.docs.map(async (doc) => {
         const testData = { id: doc.id, ...doc.data() };
-        
+
         // Get live participants for this test
         const liveParticipantsQuery = query(
           collection(db, 'results'),
@@ -39,21 +39,21 @@ function AdminOverview() {
           where('status', 'in', ['in_progress', 'active'])
         );
         const liveParticipantsSnapshot = await getDocs(liveParticipantsQuery);
-        
+
         // Get total submissions for this test
         const totalSubmissionsQuery = query(
           collection(db, 'results'),
           where('testId', '==', doc.id)
         );
         const totalSubmissionsSnapshot = await getDocs(totalSubmissionsQuery);
-        
+
         return {
           ...testData,
           liveParticipantCount: liveParticipantsSnapshot.size,
           totalSubmissions: totalSubmissionsSnapshot.size
         };
       }));
-      
+
       setActiveTests(testsData);
       const activeCount = testsData.filter(test => test.status === 'active').length;
       setStats(prev => ({ ...prev, activeTests: activeCount }));
@@ -89,7 +89,7 @@ function AdminOverview() {
             <p className="stat-number">{stats.activeTests}</p>
           </div>
         </div>
-        
+
       </div>
 
       {/* All Tests Section */}
@@ -138,7 +138,7 @@ function AdminOverview() {
                     </div>
                   </div>
                 </div>
-                
+
               </div>
             ))}
           </div>
@@ -170,7 +170,7 @@ function AdminUsers() {
   });
 
   // Check if current user can perform admin actions
-  const canPerformAdminActions = currentUser?.email?.toLowerCase() === appConfig.superAdminEmail.toLowerCase() || 
+  const canPerformAdminActions = currentUser?.email?.toLowerCase() === appConfig.superAdminEmail.toLowerCase() ||
     currentUser?.role === 'admin';
 
   useEffect(() => {
@@ -179,7 +179,7 @@ function AdminUsers() {
         const usersRef = collection(db, 'user');
         const q = query(usersRef);
         const querySnapshot = await getDocs(q);
-        
+
         const usersData = [];
         querySnapshot.forEach((doc) => {
           const userData = { id: doc.id, ...doc.data() };
@@ -188,7 +188,7 @@ function AdminUsers() {
             usersData.push(userData);
           }
         });
-        
+
         setUsers(usersData);
         setLoading(false);
         console.log('Users loaded successfully:', usersData.length);
@@ -200,7 +200,7 @@ function AdminUsers() {
     };
 
     fetchUsers();
-    
+
     // Set up real-time listener
     const usersRef = collection(db, 'user');
     const unsubscribe = onSnapshot(usersRef, (snapshot) => {
@@ -226,7 +226,7 @@ function AdminUsers() {
 
     try {
       const userRef = doc(db, 'user', userId);
-      const updateData = { 
+      const updateData = {
         role: newRole,
         updatedAt: serverTimestamp()
       };
@@ -346,10 +346,10 @@ function AdminUsers() {
     const matchesSearch = user.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       user.name?.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesRole = filterRole === 'all' || user.role === filterRole;
-    const matchesStatus = filterStatus === 'all' || 
+    const matchesStatus = filterStatus === 'all' ||
       (filterStatus === 'active' && !user.blocked) ||
       (filterStatus === 'blocked' && user.blocked);
-    
+
     return matchesSearch && matchesRole && matchesStatus;
   });
 
@@ -366,7 +366,7 @@ function AdminUsers() {
       <Loading message="Loading users" subtext="Fetching user accounts and permissions" variant="inline" size="large" />
     </div>
   );}
-  
+
   if (error) {
     return (
       <div className="admin-users">
@@ -479,7 +479,7 @@ function AdminUsers() {
                         >
                           {user.name || 'N/A'}
                         </span>
-                        
+
                       </div>
                     </td>
                     <td>
@@ -499,14 +499,14 @@ function AdminUsers() {
                       )}
                     </td>
                     <td>
-                      <RoleSelector 
+                      <RoleSelector
                         user={user}
                         onRoleChange={handleRoleChange}
                         canEdit={canPerformAdminActions}
                       />
                     </td>
                     <td>
-                      <DomainSelector 
+                      <DomainSelector
                         user={user}
                         onRoleChange={handleRoleChange}
                         canEdit={canPerformAdminActions}
@@ -519,7 +519,7 @@ function AdminUsers() {
                     </td>
                     <td>
                       <div className="user-actions">
-                        
+
                         <button
                           className={`btn btn-sm ${user.blocked ? 'btn-success' : 'btn-danger'}`}
                           onClick={() => handleBlockToggle(user.id, user.blocked)}
@@ -799,7 +799,7 @@ function AdminTests() {
   const [submissions, setSubmissions] = useState([]);
 
   useEffect(() => {
-    const unsubscribe = onSnapshot(collection(db, 'tests'), 
+    const unsubscribe = onSnapshot(collection(db, 'tests'),
       (snapshot) => {
         const testsData = snapshot.docs.map(doc => ({
           id: doc.id,
@@ -820,13 +820,13 @@ function AdminTests() {
   const loadSubmissions = async (testId) => {
     try {
       const submissionsQuery = query(
-        collection(db, 'results'), 
+        collection(db, 'results'),
         where('testId', '==', testId)
       );
       const snapshot = await getDocs(submissionsQuery);
       const submissionsData = await Promise.all(snapshot.docs.map(async (resultDoc) => {
         const submissionData = { id: resultDoc.id, ...resultDoc.data() };
-        
+
         // Process candidate name - handle emails stored in candidateName field
         if (submissionData.candidateName && submissionData.candidateName.includes('@')) {
           // If candidateName is an email, extract the username part
@@ -836,10 +836,10 @@ function AdminTests() {
           try {
             // Try to get user by Firebase UID
             const userDoc = await getDoc(doc(db, 'user', submissionData.candidateId));
-            
+
             if (userDoc.exists()) {
               const userData = userDoc.data();
-              
+
               // Use the best available name
               if (userData.name) {
                 submissionData.candidateName = userData.name;
@@ -863,12 +863,12 @@ function AdminTests() {
             submissionData.candidateName = `Candidate ${submissionData.candidateId.slice(-4)}`;
           }
         }
-        
+
         // Final fallback
         if (!submissionData.candidateName) {
           submissionData.candidateName = 'Unknown';
         }
-        
+
         return submissionData;
       }));
       setSubmissions(submissionsData);
@@ -901,32 +901,32 @@ function AdminTests() {
 
     try {
       setLoading(true);
-      
+
       // Delete all submissions/results for this test
       const resultsQuery = query(
         collection(db, 'results'),
         where('testId', '==', test.id)
       );
       const resultsSnapshot = await getDocs(resultsQuery);
-      const deleteResultsPromises = resultsSnapshot.docs.map(doc => 
+      const deleteResultsPromises = resultsSnapshot.docs.map(doc =>
         deleteDoc(doc.ref)
       );
       await Promise.all(deleteResultsPromises);
-      
+
       // Delete all questions in the test subcollection
       const questionsQuery = collection(db, 'tests', test.id, 'questions');
       const questionsSnapshot = await getDocs(questionsQuery);
-      const deleteQuestionsPromises = questionsSnapshot.docs.map(doc => 
+      const deleteQuestionsPromises = questionsSnapshot.docs.map(doc =>
         deleteDoc(doc.ref)
       );
       await Promise.all(deleteQuestionsPromises);
-      
+
       // Delete the test document itself
       await deleteDoc(doc(db, 'tests', test.id));
-      
+
       // Show success message
       alert(`Test "${test.title}" has been successfully deleted.`);
-      
+
     } catch (error) {
       console.error('Error deleting test:', error);
       alert(`Failed to delete test: ${error.message}`);
@@ -940,7 +940,7 @@ function AdminTests() {
       test.domain?.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesDomain = filterDomain === 'all' || test.domain === filterDomain;
     const matchesStatus = filterStatus === 'all' || test.status === filterStatus;
-    
+
     return matchesSearch && matchesDomain && matchesStatus;
   });
 
@@ -957,10 +957,10 @@ function AdminTests() {
 
   if (selectedTest && showSubmissions) {
     return (
-      <TestSubmissionsView 
-        test={selectedTest} 
+      <TestSubmissionsView
+        test={selectedTest}
         submissions={submissions}
-        onBack={() => setSelectedTest(null)} 
+        onBack={() => setSelectedTest(null)}
       />
     );
   }
@@ -1016,7 +1016,7 @@ function AdminTests() {
               <th>Domain</th>
               <th>Status</th>
               <th>Created</th>
-             
+
               <th>Actions</th>
             </tr>
           </thead>
@@ -1038,7 +1038,7 @@ function AdminTests() {
                   </span>
                 </td>
                 <td>{formatDateTime(test.createdAt)}</td>
-                
+
                 <td>
                   <div className="test-actions">
                     <button
@@ -1106,14 +1106,14 @@ function TestPaperView({ test, onBack }) {
             ...data
           };
         });
-        
+
         // Sort questions by questionId if available
         questionsData.sort((a, b) => {
           const aId = parseInt(a.id) || 0;
           const bId = parseInt(b.id) || 0;
           return aId - bId;
         });
-        
+
         setQuestions(questionsData);
         setLoading(false);
         console.log('Loaded questions for test paper:', questionsData);
@@ -1158,17 +1158,17 @@ function TestPaperView({ test, onBack }) {
                 <span className="question-marks">{question.marks || 1} marks</span>
               </div>
             </div>
-            
+
             <div className="question-content">
               <div className="question-text">
                 {question.questionText || question.text || 'No question text'}
               </div>
-              
+
               {/* Question Image */}
               {question.imageUrl && (
                 <div className="question-image">
-                  <img 
-                    src={question.imageUrl} 
+                  <img
+                    src={question.imageUrl}
                     alt="Question illustration"
                     style={{
                       maxWidth: '100%',
@@ -1183,14 +1183,14 @@ function TestPaperView({ test, onBack }) {
                   />
                 </div>
               )}
-              
+
               {/* MCQ Options */}
               {question.questionType === 'mcq' && question.options && question.options.length > 0 && (
                 <div className="question-options">
                   <h4>Options:</h4>
                   {question.options.map((option, optIndex) => (
-                    <div 
-                      key={optIndex} 
+                    <div
+                      key={optIndex}
                       className={`option ${option === question.correctAnswer ? 'correct-option' : ''}`}
                     >
                       <span className="option-label">{String.fromCharCode(65 + optIndex)}.</span>
@@ -1202,7 +1202,7 @@ function TestPaperView({ test, onBack }) {
                   ))}
                 </div>
               )}
-              
+
               {/* Long Answer */}
               {question.questionType === 'long' && (
                 <div className="long-answer-info">
@@ -1210,7 +1210,7 @@ function TestPaperView({ test, onBack }) {
                   <p><strong>Expected:</strong> Detailed written response</p>
                 </div>
               )}
-              
+
               {/* Code Question */}
               {question.questionType === 'code' && (
                 <div className="code-question-info">
@@ -1281,7 +1281,7 @@ function TestSubmissionsView({ test, submissions, onBack }) {
 
     try {
       console.log('Deleting submission and related data for:', submission.candidateId, 'test:', test.id);
-      
+
       // 1. Delete the main submission result
       await deleteDoc(doc(db, 'results', submission.id));
       console.log('✅ Deleted main submission');
@@ -1322,10 +1322,10 @@ function TestSubmissionsView({ test, submissions, onBack }) {
       // 5. Update local UI
       setLocalSubmissions(prev => prev.filter(s => s.id !== submission.id));
       setSelectedSubmission(null);
-      
+
       const totalDeleted = 1 + monitoringSnapshot.size + pasteSnapshot.size + tabSwitchSnapshot.size;
       alert(`Submission and all related data deleted successfully!\n\nDeleted ${totalDeleted} records total:\n• 1 submission result\n• ${monitoringSnapshot.size} monitoring logs\n• ${pasteSnapshot.size} paste logs\n• ${tabSwitchSnapshot.size} tab switch logs`);
-      
+
     } catch (error) {
       console.error('Error deleting submission and related data:', error);
       alert('Failed to delete submission: ' + (error.message || 'Unknown error'));
@@ -1335,7 +1335,7 @@ function TestSubmissionsView({ test, submissions, onBack }) {
   // If viewing individual submission
   if (selectedSubmission) {
     return (
-      <SubmissionDetailView 
+      <SubmissionDetailView
         submission={selectedSubmission}
         test={test}
         onBack={() => setSelectedSubmission(null)}
@@ -1416,18 +1416,18 @@ function TestSubmissionsView({ test, submissions, onBack }) {
                         score: submission.score,
                         evaluatedBy: submission.evaluatedBy
                       });
-                      
+
                       // Show actual marks distributed by head/admin out of test total marks
                       if (submission.totalMarksAwarded !== undefined && submission.totalMarksAwarded !== null) {
                         let testTotalMarks = test?.totalMarks || 100;
-                        
+
                         // Fix data issue: if totalMarksAwarded > testTotalMarks, likely testTotalMarks is wrong
                         if (submission.totalMarksAwarded > testTotalMarks && testTotalMarks < 50) {
                           // If test total marks seems too low and awarded marks is higher, use awarded marks as reference
                           testTotalMarks = 100; // Default to 100 as it's more reasonable
                           console.warn('Data issue detected: totalMarksAwarded > testTotalMarks, using 100 as fallback');
                         }
-                        
+
                         return `${submission.totalMarksAwarded}/${testTotalMarks}`;
                       } else if (submission.score !== undefined) {
                         // If only percentage is available, try to calculate marks
@@ -1446,8 +1446,8 @@ function TestSubmissionsView({ test, submissions, onBack }) {
                   </span>
                 </td>
                 <td>
-                  <button 
-                    className="btn btn-sm btn-outline" 
+                  <button
+                    className="btn btn-sm btn-outline"
                     title="View Details"
                     onClick={() => setSelectedSubmission(submission)}
                   >
@@ -1523,7 +1523,7 @@ function SubmissionDetailView({ submission, test, onBack }) {
           return {
             ...question,
             candidateAnswer,
-            isCorrect: question.questionType === 'mcq' ? 
+            isCorrect: question.questionType === 'mcq' ?
               candidateAnswer === question.correctAnswer : null
           };
         });
@@ -1531,7 +1531,7 @@ function SubmissionDetailView({ submission, test, onBack }) {
         // Initialize marks distribution
         const initialMarks = {};
         let calculatedTotal = 0;
-        
+
         questionsWithAnswers.forEach(question => {
           // Check if marks already exist in submission
           const existingMarks = submission.questionMarks?.[question.id];
@@ -1561,12 +1561,12 @@ function SubmissionDetailView({ submission, test, onBack }) {
     const numericMarks = Math.max(0, parseFloat(marks) || 0);
     const maxMarks = questions.find(q => q.id === questionId)?.marks || 1;
     const finalMarks = Math.min(numericMarks, maxMarks);
-    
+
     setMarksDistribution(prev => ({
       ...prev,
       [questionId]: finalMarks
     }));
-    
+
     // Recalculate total
     const newTotal = Object.values({
       ...marksDistribution,
@@ -1634,12 +1634,12 @@ function SubmissionDetailView({ submission, test, onBack }) {
               <strong>Score:</strong> {(() => {
                 if (submission.totalMarksAwarded !== undefined && submission.totalMarksAwarded !== null) {
                   let testTotalMarks = test?.totalMarks || 100;
-                  
+
                   // Fix data issue: if totalMarksAwarded > testTotalMarks, likely testTotalMarks is wrong
                   if (submission.totalMarksAwarded > testTotalMarks && testTotalMarks < 50) {
                     testTotalMarks = 100; // Default to 100 as it's more reasonable
                   }
-                  
+
                   return `${submission.totalMarksAwarded}/${testTotalMarks} marks`;
                 } else if (submission.score !== undefined) {
                   const testTotalMarks = test?.totalMarks || 100;
@@ -1651,7 +1651,7 @@ function SubmissionDetailView({ submission, test, onBack }) {
               })()}
             </div>
             <div className="meta-item">
-              <strong>Status:</strong> 
+              <strong>Status:</strong>
               <span className={`badge ${submission.status === 'evaluated' ? 'badge-success' : 'badge-warning'}`}>
                 {submission.status || 'submitted'}
               </span>
@@ -1662,11 +1662,11 @@ function SubmissionDetailView({ submission, test, onBack }) {
           <div className="marks-total-display">
             <span className="marks-total-label">Total Marks:</span>
             <span className="marks-total-value">{totalMarks} / {questions.reduce((sum, q) => sum + (q.marks || 1), 0)}</span>
-            <span className="marks-percentage">({questions.reduce((sum, q) => sum + (q.marks || 1), 0) > 0 ? 
+            <span className="marks-percentage">({questions.reduce((sum, q) => sum + (q.marks || 1), 0) > 0 ?
               Math.round((totalMarks / questions.reduce((sum, q) => sum + (q.marks || 1), 0)) * 100) : 0}%)</span>
           </div>
           <div className="marks-actions">
-            <button 
+            <button
               className={`btn btn-primary ${saving ? 'btn-loading' : ''}`}
               onClick={saveMarksDistribution}
               disabled={saving}
@@ -1729,8 +1729,8 @@ function SubmissionDetailView({ submission, test, onBack }) {
               {/* Question Image */}
               {question.imageUrl && (
                 <div className="question-image">
-                  <img 
-                    src={question.imageUrl} 
+                  <img
+                    src={question.imageUrl}
                     alt="Question illustration"
                     style={{
                       maxWidth: '100%',
@@ -1760,12 +1760,12 @@ function SubmissionDetailView({ submission, test, onBack }) {
                       </span>
                     </div>
                   </div>
-                  
+
                   <div className="question-options">
                     <h4>All Options:</h4>
                     {question.options.map((option, optIndex) => (
-                      <div 
-                        key={optIndex} 
+                      <div
+                        key={optIndex}
                         className={`option ${
                           option === question.correctAnswer ? 'correct-option' : ''
                         } ${
@@ -1837,7 +1837,7 @@ function AdminMonitoring() {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    const unsubscribe = onSnapshot(collection(db, 'tests'), 
+    const unsubscribe = onSnapshot(collection(db, 'tests'),
       (snapshot) => {
         const testsData = snapshot.docs.map(doc => ({
           id: doc.id,
@@ -1863,11 +1863,11 @@ function AdminMonitoring() {
         collection(db, 'results'),
         where('testId', '==', testId)
       );
-      
+
       const unsubscribeParticipants = onSnapshot(participantsQuery, async (snapshot) => {
         const participantsData = await Promise.all(snapshot.docs.map(async (resultDoc) => {
           const participantData = { id: resultDoc.id, ...resultDoc.data() };
-          
+
           // Process candidate name - handle emails stored in candidateName field
           if (participantData.candidateName && participantData.candidateName.includes('@')) {
             // If candidateName is an email, extract the username part
@@ -1877,10 +1877,10 @@ function AdminMonitoring() {
             try {
               // Try to get user by Firebase UID
               const userDoc = await getDoc(doc(db, 'user', participantData.candidateId));
-              
+
               if (userDoc.exists()) {
                 const userData = userDoc.data();
-                
+
                 // Use the best available name
                 if (userData.name) {
                   participantData.candidateName = userData.name;
@@ -1904,21 +1904,21 @@ function AdminMonitoring() {
               participantData.candidateName = `Candidate ${participantData.candidateId.slice(-4)}`;
             }
           }
-          
+
           // Final fallback
           if (!participantData.candidateName) {
             participantData.candidateName = 'Unknown';
           }
-          
+
           return participantData;
         }));
-        
+
         setParticipants(participantsData);
-        
+
         // Load monitoring data for all participants
         loadAllMonitoringData(testId, participantsData);
       });
-      
+
       // Store the unsubscribe function for cleanup
       return unsubscribeParticipants;
     } catch (err) {
@@ -1926,31 +1926,31 @@ function AdminMonitoring() {
       setError('Failed to load participants');
     }
   };
-  
+
   const loadAllMonitoringData = async (testId, participantsData) => {
     console.log('🔍 ADMIN MONITORING: Loading monitoring data for test:', testId);
     console.log('🔍 ADMIN MONITORING: Participants:', participantsData.map(p => ({ id: p.id, candidateId: p.candidateId, name: p.candidateName })));
-    
+
     try {
       const monitoringPromises = participantsData.map(async (participant) => {
         if (!participant.candidateId) {
           console.log('🔍 ADMIN MONITORING: Skipping participant without candidateId:', participant.id);
           return { [participant.id]: {} };
         }
-        
+
         console.log(`🔍 ADMIN MONITORING: Querying monitoring for candidate ${participant.candidateId}`);
-        
+
         const monitoringQuery = query(
           collection(db, 'monitoring'),
           where('candidateId', '==', participant.candidateId),
           where('testId', '==', testId)
         );
-        
+
         const snapshot = await getDocs(monitoringQuery);
         const events = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        
+
         console.log(`🔍 ADMIN MONITORING: Found ${events.length} events for candidate ${participant.candidateId}:`, events);
-        
+
         // Aggregate monitoring data
         const aggregatedData = {
           tabSwitches: events.filter(e => e.type === 'tab_switch' || e.type === 'visibility_change'),
@@ -1959,15 +1959,15 @@ function AdminMonitoring() {
           totalViolations: events.length,
           lastActivity: events.length > 0 ? Math.max(...events.map(e => e.timestamp?.toMillis() || 0)) : null
         };
-        
+
         console.log(`🔍 ADMIN MONITORING: Aggregated data for ${participant.candidateId}:`, aggregatedData);
-        
+
         return { [participant.id]: aggregatedData };
       });
-      
+
       const results = await Promise.all(monitoringPromises);
       const monitoringMap = results.reduce((acc, curr) => ({ ...acc, ...curr }), {});
-      
+
       console.log('🔍 ADMIN MONITORING: Final monitoring map:', monitoringMap);
       setParticipantMonitoring(monitoringMap);
     } catch (err) {
@@ -1978,13 +1978,14 @@ function AdminMonitoring() {
   const loadMonitoringData = async (candidateId, testId) => {
     try {
       // Set up real-time listener for specific participant monitoring data
+      // Temporarily disable orderBy to isolate index issue
       const monitoringQuery = query(
         collection(db, 'monitoring'),
         where('candidateId', '==', candidateId),
-        where('testId', '==', testId),
-        orderBy('timestamp', 'desc')
+        where('testId', '==', testId)
+        // orderBy('timestamp', 'desc') // Temporarily disabled to debug index issue
       );
-      
+
       const unsubscribeMonitoring = onSnapshot(monitoringQuery, (snapshot) => {
         const events = snapshot.docs.map(doc => ({
           id: doc.id,
@@ -1992,7 +1993,7 @@ function AdminMonitoring() {
         }));
         setMonitoringData(events);
       });
-      
+
       return unsubscribeMonitoring;
     } catch (err) {
       console.error('Error loading monitoring data:', err);
@@ -2023,7 +2024,7 @@ function AdminMonitoring() {
   const isSuspicious = (participant) => {
     return getSuspiciousActivityCount(participant) > 3; // Lowered threshold for better detection
   };
-  
+
   const getMonitoringStats = (participant) => {
     const monitoring = participantMonitoring[participant.id] || {};
     return {
@@ -2045,7 +2046,7 @@ function AdminMonitoring() {
   // Participant Detail View
   if (selectedParticipant) {
     return (
-      <ParticipantDetailView 
+      <ParticipantDetailView
         participant={selectedParticipant}
         test={selectedTest}
         monitoringData={monitoringData}
@@ -2083,8 +2084,8 @@ function AdminMonitoring() {
             </thead>
             <tbody>
               {participants.map(participant => (
-                <tr 
-                  key={participant.id} 
+                <tr
+                  key={participant.id}
                   className={isSuspicious(participant) ? 'suspicious-row' : ''}
                 >
                   <td>
@@ -2093,9 +2094,9 @@ function AdminMonitoring() {
                     </div>
                   </td>
                   <td>
-                    <span className={`badge ${participant.status === 'blocked' || participant.blocked ? 'badge-error' : 
+                    <span className={`badge ${participant.status === 'blocked' || participant.blocked ? 'badge-error' :
                       participant.status === 'in_progress' || participant.status === 'active' ? 'badge-success' : 'badge-neutral'}`}>
-                      {participant.status === 'blocked' || participant.blocked ? 'Blocked' : 
+                      {participant.status === 'blocked' || participant.blocked ? 'Blocked' :
                        participant.status === 'in_progress' ? 'In Progress' :
                        participant.status === 'active' ? 'Active' :
                        participant.status === 'completed' ? 'Completed' : 'Unknown'}
@@ -2157,8 +2158,8 @@ function AdminMonitoring() {
 
       <div className="tests-monitoring-grid">
         {tests.map(test => (
-          <div 
-            key={test.id} 
+          <div
+            key={test.id}
             className="test-monitoring-card"
             onClick={() => selectTest(test)}
           >
@@ -2198,7 +2199,7 @@ function AdminMonitoring() {
 // Helper function to get question name from ID
 function getQuestionName(questionId, testData = null, storedQuestionText = null) {
   if (!questionId) {return 'Unknown Question';}
-  
+
   // If we have stored question text from monitoring data, use it directly
   if (storedQuestionText && storedQuestionText !== 'Question text not available') {
     const cleanText = storedQuestionText
@@ -2208,54 +2209,54 @@ function getQuestionName(questionId, testData = null, storedQuestionText = null)
     const shortText = cleanText.slice(0, 100);
     return `"${shortText}${cleanText.length > 100 ? '...' : ''}"`;
   }
-  
+
   console.log('🔍 Getting question name for:', questionId, 'Test data:', testData?.questions?.length);
   console.log('🔍 Available questions:', testData?.questions?.map(q => ({ id: q.id, hasQuestionText: !!q.questionText, hasQuestion: !!q.question, hasText: !!q.text })));
   console.log('🔍 All question IDs:', testData?.questions?.map(q => q.id));
   console.log('🔍 Question ID types:', testData?.questions?.map(q => ({ id: q.id, type: typeof q.id })));
   console.log('🔍 Looking for ID type:', typeof questionId);
-  
+
   // Show available question texts for debugging
   if (testData?.questions?.length > 0) {
-    console.log('🔍 Available question texts:', testData.questions.map(q => ({ 
-      id: q.id, 
-      text: (q.questionText || q.question || q.text || 'No text').substring(0, 50) + '...' 
+    console.log('🔍 Available question texts:', testData.questions.map(q => ({
+      id: q.id,
+      text: (q.questionText || q.question || q.text || 'No text').substring(0, 50) + '...'
     })));
   }
-  
+
   // Handle notes fields (e.g., "1758793866121_notes")
   if (questionId.includes('_notes')) {
     const baseQuestionId = questionId.replace('_notes', '');
-    
+
     // Try to find the actual question text
     if (testData?.questions) {
       // First try exact ID match
       let question = testData.questions.find(q => q.id === baseQuestionId);
       console.log('🔍 Found question for notes (exact match):', question);
-      
+
       // If no exact match, try partial ID match
       if (!question) {
         question = testData.questions.find(q => q.id.includes(baseQuestionId) || baseQuestionId.includes(q.id));
         console.log('🔍 Found question for notes (partial match):', question);
       }
-      
+
       // If still no match, try string conversion and different ID formats
       if (!question) {
         const baseQuestionIdStr = String(baseQuestionId);
-        question = testData.questions.find(q => 
-          String(q.id) === baseQuestionIdStr || 
-          String(q.id).includes(baseQuestionIdStr) || 
+        question = testData.questions.find(q =>
+          String(q.id) === baseQuestionIdStr ||
+          String(q.id).includes(baseQuestionIdStr) ||
           baseQuestionIdStr.includes(String(q.id))
         );
         console.log('🔍 Found question for notes (string match):', question);
       }
-      
+
       console.log('🔍 Notes question properties:', question ? Object.keys(question) : 'No question found');
-      
+
       // Try multiple possible question text properties
       const questionText = question?.questionText || question?.question || question?.text;
       console.log('🔍 Notes question text found:', questionText ? questionText.substring(0, 50) + '...' : 'No text found');
-      
+
       if (questionText) {
         // Clean the question text and make it more readable
         const cleanText = questionText
@@ -2266,36 +2267,36 @@ function getQuestionName(questionId, testData = null, storedQuestionText = null)
         return `"${shortText}${cleanText.length > 80 ? '...' : ''}" (Notes Field)`;
       }
     }
-    
+
     return `Question ${baseQuestionId.slice(0, 8)}... (Notes Field)`;
   }
-  
+
   // Try to find the actual question text
   if (testData?.questions) {
     // First try exact ID match
     let question = testData.questions.find(q => q.id === questionId);
     console.log('🔍 Found question (exact match):', question);
-    
+
     // If no exact match, try partial ID match (in case of ID variations)
     if (!question) {
       question = testData.questions.find(q => q.id.includes(questionId) || questionId.includes(q.id));
       console.log('🔍 Found question (partial match):', question);
     }
-    
+
     // If still no match, try string conversion and different ID formats
     if (!question) {
       const questionIdStr = String(questionId);
       console.log('🔍 Trying string conversion - looking for:', questionIdStr);
       console.log('🔍 Available IDs as strings:', testData.questions.map(q => String(q.id)));
-      
-      question = testData.questions.find(q => 
-        String(q.id) === questionIdStr || 
-        String(q.id).includes(questionIdStr) || 
+
+      question = testData.questions.find(q =>
+        String(q.id) === questionIdStr ||
+        String(q.id).includes(questionIdStr) ||
         questionIdStr.includes(String(q.id))
       );
       console.log('🔍 Found question (string match):', question);
     }
-    
+
     // If still no match, try to find by any partial match
     if (!question) {
       console.log('🔍 Trying any partial match...');
@@ -2309,7 +2310,7 @@ function getQuestionName(questionId, testData = null, storedQuestionText = null)
         }
       }
     }
-    
+
     // If still no match, try to find by timestamp similarity (for timestamp-based IDs)
     if (!question && questionId.length > 10) {
       console.log('🔍 Trying timestamp-based matching...');
@@ -2318,7 +2319,7 @@ function getQuestionName(questionId, testData = null, storedQuestionText = null)
         // Find the closest timestamp match
         let closestQuestion = null;
         let smallestDiff = Infinity;
-        
+
         for (const q of testData.questions) {
           const qTimestamp = parseInt(q.id);
           if (!isNaN(qTimestamp)) {
@@ -2329,26 +2330,26 @@ function getQuestionName(questionId, testData = null, storedQuestionText = null)
             }
           }
         }
-        
+
         // If the difference is reasonable (within 1 hour = 3600000 ms), use it
         if (closestQuestion && smallestDiff < 3600000) {
           question = closestQuestion;
-          console.log('🔍 Found timestamp-based match!', { 
-            target: questionId, 
-            found: question.id, 
+          console.log('🔍 Found timestamp-based match!', {
+            target: questionId,
+            found: question.id,
             diff: smallestDiff,
             question: question.questionText?.substring(0, 50) + '...'
           });
         }
       }
     }
-    
+
     console.log('🔍 Question properties:', question ? Object.keys(question) : 'No question found');
-    
+
     // Try multiple possible question text properties
     const questionText = question?.questionText || question?.question || question?.text;
     console.log('🔍 Question text found:', questionText ? questionText.substring(0, 50) + '...' : 'No text found');
-    
+
     if (questionText) {
       // Clean the question text and make it more readable
       const cleanText = questionText
@@ -2359,13 +2360,13 @@ function getQuestionName(questionId, testData = null, storedQuestionText = null)
       return `"${shortText}${cleanText.length > 100 ? '...' : ''}"`;
     }
   }
-  
+
   // For regular question IDs, show in a readable format
   if (questionId.length > 10) {
     // If it's a long ID (timestamp-based), show it as "Question [first few digits]"
     console.log('🔍 Falling back to ID display for:', questionId);
     console.log('🔍 This question ID does not exist in current test data');
-    
+
     // Try to show a helpful message with available questions
     if (testData?.questions?.length > 0) {
       const firstQuestion = testData.questions[0];
@@ -2375,10 +2376,10 @@ function getQuestionName(questionId, testData = null, storedQuestionText = null)
         return ` ${firstQuestionText.substring(0, 50)}${firstQuestionText.length > 50 ? '...' : ''}`;
       }
     }
-    
+
     return `Question ${questionId.slice(0, 8)}... (ID not found in current test)`;
   }
-  
+
   // For shorter IDs, show as is
   console.log('🔍 Using short ID display for:', questionId);
   return `Question ${questionId} (ID not found in current test)`;
@@ -2393,7 +2394,7 @@ function ParticipantDetailView({ participant, test, monitoringData, onBack }) {
   useEffect(() => {
     const loadTestQuestions = async () => {
       if (!test?.id) {return;}
-      
+
       try {
         console.log('🔍 Loading test questions for:', test.id);
         const testQuery = query(
@@ -2401,11 +2402,11 @@ function ParticipantDetailView({ participant, test, monitoringData, onBack }) {
           where('__name__', '==', test.id)
         );
         const testSnapshot = await getDocs(testQuery);
-        
+
         if (!testSnapshot.empty) {
           const testDoc = testSnapshot.docs[0];
           const testData = { id: testDoc.id, ...testDoc.data() };
-          
+
           // Load questions subcollection
           const questionsQuery = collection(db, 'tests', test.id, 'questions');
           const questionsSnapshot = await getDocs(questionsQuery);
@@ -2413,7 +2414,7 @@ function ParticipantDetailView({ participant, test, monitoringData, onBack }) {
             id: doc.id,
             ...doc.data()
           }));
-          
+
           testData.questions = questions;
           setTestWithQuestions(testData);
           console.log('✅ Loaded test with questions:', testData);
@@ -2429,12 +2430,12 @@ function ParticipantDetailView({ participant, test, monitoringData, onBack }) {
   }, [test]);
 
   // Process monitoring data by type
-  const tabSwitches = monitoringData.filter(event => 
+  const tabSwitches = monitoringData.filter(event =>
     event.type === 'tab_switch' || event.type === 'visibility_change' || event.type === 'focus_lost'
   );
   const copyEvents = monitoringData.filter(event => event.type === 'copy');
   const pasteEvents = monitoringData.filter(event => event.type === 'paste');
-  
+
   // Additional monitoring events
   const keyboardEvents = monitoringData.filter(event => event.type === 'keyboard_shortcut');
   const rightClickEvents = monitoringData.filter(event => event.type === 'right_click');
@@ -2453,31 +2454,31 @@ function ParticipantDetailView({ participant, test, monitoringData, onBack }) {
       </div>
 
       <div className="detail-tabs">
-        <button 
+        <button
           className={`tab ${activeTab === 'overview' ? 'active' : ''}`}
           onClick={() => setActiveTab('overview')}
         >
           Overview
         </button>
-        <button 
+        <button
           className={`tab ${activeTab === 'tabswitches' ? 'active' : ''}`}
           onClick={() => setActiveTab('tabswitches')}
         >
           Tab Switches ({tabSwitches.length})
         </button>
-        <button 
+        <button
           className={`tab ${activeTab === 'copy' ? 'active' : ''}`}
           onClick={() => setActiveTab('copy')}
         >
           Copy Events ({copyEvents.length})
         </button>
-        <button 
+        <button
           className={`tab ${activeTab === 'paste' ? 'active' : ''}`}
           onClick={() => setActiveTab('paste')}
         >
           Paste Events ({pasteEvents.length})
         </button>
-        <button 
+        <button
           className={`tab ${activeTab === 'violations' ? 'active' : ''}`}
           onClick={() => setActiveTab('violations')}
         >
@@ -2518,9 +2519,9 @@ function ParticipantDetailView({ participant, test, monitoringData, onBack }) {
                   </div>
                   <div className="stat-item">
                     <span className="stat-label">Status:</span>
-                    <span className={`badge ${participant.status === 'blocked' || participant.blocked ? 'badge-error' : 
+                    <span className={`badge ${participant.status === 'blocked' || participant.blocked ? 'badge-error' :
                       participant.status === 'in_progress' || participant.status === 'active' ? 'badge-success' : 'badge-neutral'}`}>
-                      {participant.status === 'blocked' || participant.blocked ? 'Blocked' : 
+                      {participant.status === 'blocked' || participant.blocked ? 'Blocked' :
                        participant.status === 'in_progress' ? 'In Progress' :
                        participant.status === 'active' ? 'Active' :
                        participant.status === 'completed' ? 'Completed' : 'Unknown'}
@@ -2551,7 +2552,7 @@ function ParticipantDetailView({ participant, test, monitoringData, onBack }) {
                   <div key={index} className="event-item violation-event">
                     <div className="event-header">
                       <span className="event-time">{formatDateTime(event.timestamp)}</span>
-                      <span className="event-type">{event.type === 'tab_switch' ? '🔄 Tab Switch' : 
+                      <span className="event-type">{event.type === 'tab_switch' ? '🔄 Tab Switch' :
                         event.type === 'visibility_change' ? '👁️ Window Hidden' : '🎯 Focus Lost'}</span>
                     </div>
                     <div className="event-details">
@@ -2655,7 +2656,7 @@ function ParticipantDetailView({ participant, test, monitoringData, onBack }) {
                     </div>
                     <div className="event-content">
                       <span className="event-description">
-                        {event.description || 
+                        {event.description ||
                          (event.type === 'tab_switch' ? 'Switched away from test' :
                           event.type === 'copy' ? 'Copied content' :
                           event.type === 'paste' ? 'Pasted content' :

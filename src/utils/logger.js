@@ -11,14 +11,14 @@ const LOG_LEVELS = {
   DEBUG: 3
 };
 
-// Current log level based on environment
+// Current log level based on environment - SILENT IN DEVELOPMENT
 const getCurrentLogLevel = () => {
   if (process.env.NODE_ENV === 'production') {
     return LOG_LEVELS.ERROR;
   } else if (process.env.NODE_ENV === 'test') {
     return LOG_LEVELS.WARN;
   } else {
-    return LOG_LEVELS.DEBUG; // Development
+    return -1; // Development - COMPLETELY SILENT
   }
 };
 

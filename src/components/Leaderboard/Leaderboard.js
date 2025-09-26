@@ -26,15 +26,15 @@ const Leaderboard = () => {
   const isCandidate = userDoc?.role === 'candidate' || !userDoc?.role;
   const canPublish = isAdmin || isHead;
   
-  // Debug logging for permissions
-  console.log('User permissions:', {
-    role: userDoc?.role,
-    isAdmin,
-    isHead,
-    isCandidate,
-    canPublish,
-    domain: userDoc?.domain
-  });
+  // Debug logging for permissions - DISABLED
+  // console.log('User permissions:', {
+  //   role: userDoc?.role,
+  //   isAdmin,
+  //   isHead,
+  //   isCandidate,
+  //   canPublish,
+  //   domain: userDoc?.domain
+  // });
 
   // Load all tests and published leaderboards
   useEffect(() => {
@@ -110,15 +110,15 @@ const Leaderboard = () => {
       
       const submissions = await Promise.all(snapshot.docs.map(async (doc) => {
         const data = doc.data();
-        console.log('Raw submission data:', {
-          id: doc.id,
-          candidateName: data.candidateName,
-          totalMarksAwarded: data.totalMarksAwarded,
-          maxPossibleMarks: data.maxPossibleMarks,
-          score: data.score,
-          testTotalMarks: test.totalMarks,
-          questionMarks: data.questionMarks
-        });
+        // console.log('Raw submission data:', {
+        //   id: doc.id,
+        //   candidateName: data.candidateName,
+        //   totalMarksAwarded: data.totalMarksAwarded,
+        //   maxPossibleMarks: data.maxPossibleMarks,
+        //   score: data.score,
+        //   testTotalMarks: test.totalMarks,
+        //   questionMarks: data.questionMarks
+        // });
         
         // Try to get better candidate name
         let candidateName = data.candidateName || 'Unknown';
@@ -290,7 +290,7 @@ const Leaderboard = () => {
     });
     
     if (!canPublish) {
-      console.warn('User does not have publish permissions');
+      // console.warn('User does not have publish permissions');
       return;
     }
     
@@ -347,10 +347,10 @@ const Leaderboard = () => {
       
       // Show success message
       const action = newStatus ? 'published' : 'unpublished';
-      console.log(`Leaderboard ${action} successfully for test: ${testTitle}`);
+      // console.log(`Leaderboard ${action} successfully for test: ${testTitle}`);
       
     } catch (error) {
-      console.error('Error updating leaderboard publication:', error);
+      // console.error('Error updating leaderboard publication:', error);
       const isCurrentlyPublished = publishedLeaderboards[testId]?.published;
       const attemptedAction = !isCurrentlyPublished ? 'publish' : 'unpublish';
       setError(`Failed to ${attemptedAction} leaderboard: ${error.message}`);
@@ -408,7 +408,7 @@ const Leaderboard = () => {
           setPublishedLeaderboards(publishedData);
           setLoading(false);
         } catch (err) {
-          console.error('Error loading tests and leaderboards:', err);
+          // console.error('Error loading tests and leaderboards:', err);
           setError(`Failed to load tests: ${err.message || 'Unknown error'}`);
           setLoading(false);
         }
@@ -568,7 +568,7 @@ const Leaderboard = () => {
                               await toggleLeaderboardPublication(test.id, test.title);
                             } catch (error) {
                               // Error is already handled in the function
-                              console.log('Publication toggle completed with error');
+                              // console.log('Publication toggle completed with error');
                             }
                           }}
                           disabled={publishing}

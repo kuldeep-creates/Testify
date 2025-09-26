@@ -9,9 +9,7 @@
  * @param {Function} callback - Optional callback after notification
  */
 export const showSuccess = (message, callback = null) => {
-  if (process.env.NODE_ENV === 'development') {
-    console.log(`✅ SUCCESS: ${message}`);
-  }
+  // Silent in development - no console output
   
   // Show alert for critical success messages that require user acknowledgment
   if (message.includes('exported') || message.includes('submitted') || message.includes('updated')) {
@@ -30,14 +28,7 @@ export const showSuccess = (message, callback = null) => {
  * @param {Function} callback - Optional callback after notification
  */
 export const showError = (message, error = null, callback = null) => {
-  if (process.env.NODE_ENV === 'development') {
-    console.error(`❌ ERROR: ${message}`, error || '');
-  }
-  
-  // Log error details for debugging
-  if (error) {
-    console.error('Error details:', error);
-  }
+  // Silent in development - no console output
   
   // Show alert for critical errors that require immediate user attention
   alert(message);
@@ -53,9 +44,7 @@ export const showError = (message, error = null, callback = null) => {
  * @param {Function} callback - Optional callback after notification
  */
 export const showWarning = (message, callback = null) => {
-  if (process.env.NODE_ENV === 'development') {
-    console.warn(`⚠️ WARNING: ${message}`);
-  }
+  // Silent in development - no console output
   
   if (callback) {
     setTimeout(callback, 100);
@@ -68,9 +57,7 @@ export const showWarning = (message, callback = null) => {
  * @param {Function} callback - Optional callback after notification
  */
 export const showInfo = (message, callback = null) => {
-  if (process.env.NODE_ENV === 'development') {
-    console.info(`ℹ️ INFO: ${message}`);
-  }
+  // Silent in development - no console output
   
   if (callback) {
     setTimeout(callback, 100);

@@ -1,5 +1,3 @@
-import React from 'react';
-import { useNavigate } from 'react-router-dom';
 
 function BlockedSubmissionCard({ message, onClose }) {
   // const navigate = useNavigate(); // Commented out as not currently used
@@ -78,10 +76,10 @@ function BlockedSubmissionCard({ message, onClose }) {
           justifyContent: 'center',
           flexWrap: 'wrap'
         }}>
-          
-           
+
+
             {onClose && (
-              <button 
+              <button
                 onClick={onClose}
                 className="btn btn-outline"
                 style={{
