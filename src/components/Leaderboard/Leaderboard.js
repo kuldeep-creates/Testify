@@ -23,15 +23,7 @@ const Leaderboard = () => {
   const isCandidate = userDoc?.role === 'candidate' || !userDoc?.role;
   const canPublish = isAdmin || isHead;
   
-  // Debug logging for permissions
-  console.log('User permissions:', {
-    role: userDoc?.role,
-    isAdmin,
-    isHead,
-    isCandidate,
-    canPublish,
-    domain: userDoc?.domain
-  });
+ 
 
   // Load all tests and published leaderboards
   useEffect(() => {
@@ -103,19 +95,11 @@ const Leaderboard = () => {
       );
       
       const snapshot = await getDocs(resultsQuery);
-      console.log(`Loading leaderboard for test: ${test.title}, found ${snapshot.docs.length} submissions`);
+       
       
       const submissions = await Promise.all(snapshot.docs.map(async (doc) => {
         const data = doc.data();
-        console.log('Raw submission data:', {
-          id: doc.id,
-          candidateName: data.candidateName,
-          totalMarksAwarded: data.totalMarksAwarded,
-          maxPossibleMarks: data.maxPossibleMarks,
-          score: data.score,
-          testTotalMarks: test.totalMarks,
-          questionMarks: data.questionMarks
-        });
+        
         
         // Try to get better candidate name
         let candidateName = data.candidateName || 'Unknown';
@@ -135,7 +119,7 @@ const Leaderboard = () => {
                 userData = userSnapshot.docs[0].data();
               }
             } catch (queryError) {
-              console.log('Query by uid failed, trying direct document access');
+ 
             }
             
             // Second try: direct document access
@@ -147,7 +131,7 @@ const Leaderboard = () => {
                   userData = userDocSnap.data();
                 }
               } catch (docError) {
-                console.log('Direct document access failed');
+       
               }
             }
             
@@ -156,7 +140,7 @@ const Leaderboard = () => {
               candidateName = userData.name || userData.displayName || userData.fullName || userData.firstName || candidateName;
             }
           } catch (error) {
-            console.log('Could not fetch user data for candidate:', data.candidateId, error);
+       
           }
         }
         
@@ -174,7 +158,7 @@ const Leaderboard = () => {
               return sum + numMark;
             }, 0);
             
-            console.log(`Recalculating marks from questions: ${calculatedTotal} (was ${totalMarksAwarded})`);
+         
             totalMarksAwarded = calculatedTotal;
           }
         }
@@ -209,11 +193,7 @@ const Leaderboard = () => {
           questionMarks: data.questionMarks || {}
         };
         
-        console.log('Final processed data:', {
-          candidateName: finalResult.candidateName,
-          marks: `${finalResult.totalMarksAwarded}/${finalResult.maxPossibleMarks}`,
-          score: `${finalResult.score}%`
-        });
+        
         
         return finalResult;
       }));
@@ -287,14 +267,7 @@ const Leaderboard = () => {
 
   // Toggle leaderboard publication
   const toggleLeaderboardPublication = async (testId, testTitle) => {
-    console.log('Toggle publication called:', {
-      testId,
-      testTitle,
-      canPublish,
-      userRole: userDoc?.role,
-      isHead,
-      isAdmin
-    });
+    
     
     if (!canPublish) {
       console.warn('User does not have publish permissions');
@@ -354,7 +327,7 @@ const Leaderboard = () => {
       
       // Show success message
       const action = newStatus ? 'published' : 'unpublished';
-      console.log(`Leaderboard ${action} successfully for test: ${testTitle}`);
+ 
       
     } catch (error) {
       console.error('Error updating leaderboard publication:', error);
@@ -564,18 +537,12 @@ const Leaderboard = () => {
                           className={`btn btn-sm ${isPublished ? 'btn-danger' : 'btn-success'}`}
                           onClick={async (e) => {
                             e.stopPropagation();
-                            console.log('Publication button clicked:', {
-                              testId: test.id,
-                              testTitle: test.title,
-                              currentStatus: isPublished,
-                              userRole: userDoc?.role,
-                              canPublish
-                            });
+                            
                             try {
                               await toggleLeaderboardPublication(test.id, test.title);
                             } catch (error) {
                               // Error is already handled in the function
-                              console.log('Publication toggle completed with error');
+                  
                             }
                           }}
                           disabled={publishing}

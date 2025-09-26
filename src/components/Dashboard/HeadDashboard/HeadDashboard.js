@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { signOut } from 'firebase/auth';
 import { auth, db } from '../../../firebase';
-import { collection, getDocs, query, where, doc, setDoc, serverTimestamp, addDoc, updateDoc, deleteDoc, getDoc, onSnapshot } from 'firebase/firestore';
+import { collection, getDocs, query, where, doc, setDoc, serverTimestamp, addDoc, updateDoc, deleteDoc, getDoc } from 'firebase/firestore';
 import { fetchTestWithQuestions } from '../../../services/firestore';
 import { useFirebase } from '../../../context/FirebaseContext';
 import Loading from '../../Loading/Loading';
@@ -85,12 +85,7 @@ function HeadCreateTest() {
     setLoading(true);
     setError('');
     try {
-      console.log('[Head:createTest] Starting test creation...');
-      console.log('Questions with images:', questions.map(q => ({
-        id: q.id,
-        questionText: q.questionText.substring(0, 50) + '...',
-        imageUrl: q.imageUrl
-      })));
+      
       
       // Validate test data
       if (!testData.title || testData.title.trim() === '') {
@@ -124,7 +119,7 @@ function HeadCreateTest() {
       };
       
       await setDoc(testRef, testDoc);
-      console.log('[Head:createTest] Test document saved successfully with ID:', testId);
+      
       
       // Add questions as subcollection
       for (const question of questions) {
@@ -138,7 +133,7 @@ function HeadCreateTest() {
           imageUrl: question.imageUrl || ''
         };
         
-        console.log('Saving question with imageUrl:', questionDoc.imageUrl);
+ 
         await addDoc(collection(db, 'tests', testId, 'questions'), questionDoc);
       }
 
@@ -147,7 +142,7 @@ function HeadCreateTest() {
       setTestData({ title: '', description: '', duration: '30 min', domain: 'Full Stack', password: '', totalMarks: 0 });
       setQuestions([]);
     } catch (e) {
-      console.log('[Head:createTest:error]', e.code, e.message);
+ 
       setError(e.message || 'Failed to create test');
     } finally {
       setLoading(false);
@@ -479,7 +474,7 @@ function HeadManageTests() {
         const testsData = snap.docs.map(d => ({ id: d.id, ...d.data() }));
         setTests(testsData);
       } catch (e) {
-        console.log('[Head:loadTests:error]', e.code, e.message);
+ 
         setError(e.message || 'Failed to load tests');
       } finally {
         setLoading(false);
@@ -497,7 +492,7 @@ function HeadManageTests() {
       await updateDoc(doc(db, 'tests', testId), { status: newStatus });
       setTests(tests.map(t => t.id === testId ? { ...t, status: newStatus } : t));
     } catch (e) {
-      console.log('[Head:toggleStatus:error]', e.code, e.message);
+      
       setError(e.message || 'Failed to update test status');
     }
   };
@@ -505,21 +500,12 @@ function HeadManageTests() {
   // Debug function to manually check database
   const debugCheckDatabase = async (testId) => {
     try {
-      console.log('=== MANUAL DATABASE CHECK ===');
+ 
       const questionsRef = collection(db, 'tests', testId, 'questions');
       const snapshot = await getDocs(questionsRef);
-      console.log('Number of questions in database:', snapshot.docs.length);
-      snapshot.docs.forEach((doc, index) => {
-        const data = doc.data();
-        console.log(`Question ${index + 1}:`, {
-          docId: doc.id,
-          questionId: data.questionId,
-          questionText: data.questionText?.substring(0, 30) + '...',
-          imageUrl: data.imageUrl,
-          fullData: data
-        });
-      });
-      console.log('=== END DATABASE CHECK ===');
+ 
+      
+       
     } catch (error) {
       console.error('Database check error:', error);
     }
@@ -528,21 +514,13 @@ function HeadManageTests() {
   const startEditTest = async (test) => {
     try {
       setEditLoading(true);
-      console.log('Starting edit for test:', test);
+ 
       
       // Manual database check
       await debugCheckDatabase(test.id);
       
       const testData = await fetchTestWithQuestions(test.id);
-      console.log('Fetched test data:', testData);
-      console.log('Questions from database:', testData?.questions);
-      if (testData?.questions) {
-        console.log('Questions with imageUrl:', testData.questions.map(q => ({
-          id: q.id,
-          questionText: q.questionText?.substring(0, 30) + '...',
-          imageUrl: q.imageUrl
-        })));
-      }
+      
       
       if (testData) {
         setEditingTest(test);
@@ -564,14 +542,14 @@ function HeadManageTests() {
           imageUrl: q.imageUrl || ''
         }));
         
-        console.log('Processed questions for editing:', processedQuestions);
+       
         setEditQuestions(processedQuestions);
         setEditQIndex(0);
         setEditStep(1);
-        console.log('Edit modal should now show with step:', 1);
+     
       }
     } catch (e) {
-      console.log('[Head:startEdit:error]', e);
+  
       setError('Failed to load test for editing');
     } finally {
       setEditLoading(false);
@@ -654,7 +632,6 @@ function HeadManageTests() {
               <button className="modal-close" onClick={() => setEditingTest(null)}>×</button>
             </div>
             <div className="modal-body">
-              {console.log('Rendering modal body. editStep:', editStep, 'editingTest:', editingTest)}
               {editStep === 1 && (
                 <div className="edit-step-1">
                   <h4>Test Information</h4>
@@ -787,7 +764,7 @@ function HeadManageTests() {
                                   const updated = [...editQuestions];
                                   updated[editQIndex].imageUrl = e.target.value;
                                   setEditQuestions(updated);
-                                  console.log('Image URL updated:', e.target.value);
+                                 
                                 }}
                                 className="form-input"
                                 placeholder="Enter image URL (e.g., https://example.com/image.jpg)"
@@ -972,9 +949,7 @@ function HeadManageTests() {
                               imageUrl: question.imageUrl || ''
                             };
                             
-                            if (questionDoc.imageUrl) {
-                              console.log('Saving question with image:', questionDoc.imageUrl);
-                            }
+                             
                             await addDoc(questionsRef, questionDoc);
                           }
                           
@@ -1018,6 +993,22 @@ function HeadResults() {
   const [selectedSubmission, setSelectedSubmission] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+<<<<<<< Updated upstream
+=======
+  const [exporting, setExporting] = useState(false);
+  const [editingTest, setEditingTest] = useState(null);
+  const [editStep, setEditStep] = useState(1);
+  const [editTestData, setEditTestData] = useState({
+    title: '',
+    description: '',
+    duration: '30 min',
+    durationHours: 0,
+    durationMinutes: 30,
+    password: '',
+    allowMultipleSubmissions: false
+  });
+ 
+>>>>>>> Stashed changes
   const { userDoc } = useFirebase();
 
   useEffect(() => {
@@ -1025,23 +1016,47 @@ function HeadResults() {
       setLoading(true);
       setError('');
       try {
+<<<<<<< Updated upstream
+=======
+         
+>>>>>>> Stashed changes
         const testsRef = collection(db, 'tests');
         const testsQuery = query(testsRef, where('domain', '==', userDoc?.domain || 'Full Stack'));
         const testsSnap = await getDocs(testsQuery);
+<<<<<<< Updated upstream
         const testsData = testsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+=======
+        let testsData = testsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+        
+         
+        // If no tests found by branch, try loading all tests
+        if (testsData.length === 0) {
+        
+          const allTestsSnap = await getDocs(testsRef);
+          testsData = allTestsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+          
+        }
+        
+         
+>>>>>>> Stashed changes
         setTests(testsData);
       } catch (e) {
-        console.log('[Head:loadTests:error]', e.code, e.message);
+         
         setError(e.message || 'Failed to load tests');
       } finally {
         setLoading(false);
       }
     };
     
+<<<<<<< Updated upstream
     if (userDoc?.domain) {
       loadTests();
     }
   }, [userDoc?.domain]);
+=======
+  
+  }, [userDoc]);
+>>>>>>> Stashed changes
 
   const loadSubmissions = async (testId) => {
     setLoading(true);
@@ -1059,16 +1074,14 @@ function HeadResults() {
           let displayName = '';
           
           // Process candidate name - handle emails stored in candidateName field
-          console.log('DEBUG: Raw candidateName from database:', data.candidateName);
-          console.log('DEBUG: CandidateId:', data.candidateId);
+        
           
           // If candidateName is already an email, extract the username part
           if (candidateName && candidateName.includes('@')) {
             candidateName = candidateName.split('@')[0];
-            console.log('DEBUG: Extracted name from email:', candidateName);
+        
           } else if (data.candidateId) {
-            // Try to get better name from user database
-            console.log('DEBUG: Trying to get name from user database for:', data.candidateId);
+       
             
             try {
               // Try to get user by Firebase UID from 'user' collection
@@ -1077,14 +1090,14 @@ function HeadResults() {
               
               if (userDoc.exists()) {
                 userData = userDoc.data();
-                console.log('DEBUG: Found user in "user" collection:', userData);
+                 
               } else {
-                console.log('DEBUG: No user found in "user" collection, trying "users"...');
+               
                 // Try 'users' collection (plural)
                 userDoc = await getDoc(doc(db, 'users', data.candidateId));
                 if (userDoc.exists()) {
                   userData = userDoc.data();
-                  console.log('DEBUG: Found user in "users" collection:', userData);
+                 
                 }
               }
               
@@ -1098,20 +1111,13 @@ function HeadResults() {
                   userData.username
                 ];
                 
-                console.log('DEBUG: Available name fields:', {
-                  name: userData.name,
-                  displayName: userData.displayName,
-                  fullName: userData.fullName,
-                  firstName: userData.firstName,
-                  username: userData.username,
-                  email: userData.email
-                });
+                
                 
                 // Use the first available name
                 for (const name of possibleNames) {
                   if (name && name.trim()) {
                     candidateName = name.trim();
-                    console.log('DEBUG: Using name field:', candidateName);
+               
                     break;
                   }
                 }
@@ -1119,7 +1125,7 @@ function HeadResults() {
                 // If no name fields, try email prefix from user data
                 if (!candidateName && userData.email) {
                   candidateName = userData.email.includes('@') ? userData.email.split('@')[0] : userData.email;
-                  console.log('DEBUG: Using email prefix from user data:', candidateName);
+                   
                 }
                 
                 // Update the result document with the better candidate name
@@ -1127,10 +1133,10 @@ function HeadResults() {
                   await updateDoc(resultDoc.ref, {
                     candidateName: candidateName
                   });
-                  console.log('DEBUG: Updated candidateName in database to:', candidateName);
+                   
                 }
               } else {
-                console.log('DEBUG: No user found in any collection for UID:', data.candidateId);
+                 
                 // Fallback to using last 4 chars of UID
                 candidateName = `Candidate ${data.candidateId.slice(-4)}`;
               }
@@ -1166,7 +1172,7 @@ function HeadResults() {
       
       setSubmissions(resultsData);
     } catch (e) {
-      console.log('[Head:loadSubmissions:error]', e.code, e.message);
+    
       setError(e.message || 'Failed to load submissions');
     } finally {
       setLoading(false);
@@ -1196,6 +1202,86 @@ function HeadResults() {
     }
   };
 
+<<<<<<< Updated upstream
+=======
+  // Test Management Functions
+  const toggleTestStatus = async (testId, currentStatus) => {
+    try {
+      const newStatus = currentStatus === 'active' ? 'closed' : 'active';
+      await updateDoc(doc(db, 'tests', testId), { status: newStatus });
+      setTests(tests.map(t => t.id === testId ? { ...t, status: newStatus } : t));
+      alert(`Test ${newStatus === 'active' ? 'activated' : 'closed'} successfully!`);
+    } catch (e) {
+   
+      setError('Failed to update test status');
+    }
+  };
+
+  const deleteTest = async (testId, testTitle) => {
+    const confirmDelete = window.confirm(
+      `Are you sure you want to delete "${testTitle}"?\n\n` +
+      `This action cannot be undone and will permanently remove:\n` +
+      `• The test and all its questions\n` +
+      `• All student submissions\n` +
+      `• All related data\n\n` +
+      `This action is irreversible!`
+    );
+    
+    if (!confirmDelete) return;
+    
+    try {
+      // Delete test document
+      await deleteDoc(doc(db, 'tests', testId));
+      
+      // Delete all submissions for this test
+      const resultsQuery = query(collection(db, 'results'), where('testId', '==', testId));
+      const resultsSnap = await getDocs(resultsQuery);
+      const deletePromises = resultsSnap.docs.map(doc => deleteDoc(doc.ref));
+      await Promise.all(deletePromises);
+      
+      // Update local state
+      setTests(tests.filter(t => t.id !== testId));
+      if (selectedTest?.id === testId) {
+        setSelectedTest(null);
+        setSubmissions([]);
+      }
+      
+      alert(`Test "${testTitle}" and all related data deleted successfully!`);
+    } catch (e) {
+     
+      setError('Failed to delete test');
+      alert('Failed to delete test. Please try again.');
+    }
+  };
+
+  const handleEditTest = (test) => {
+    // Parse duration for editing
+    const parseDuration = (duration) => {
+      const match = duration.match(/(\d+)h?\s*(\d+)?m?/);
+      if (match) {
+        const hours = parseInt(match[1]) || 0;
+        const minutes = parseInt(match[2]) || 0;
+        return { hours, minutes };
+      }
+      return { hours: 0, minutes: 30 };
+    };
+    
+    const { hours, minutes } = parseDuration(test.duration || '30min');
+    
+    setEditTestData({
+      title: test.title || '',
+      description: test.description || '',
+      duration: test.duration || '30min',
+      durationHours: hours,
+      durationMinutes: minutes,
+      password: test.password || '',
+      allowMultipleSubmissions: test.allowMultipleSubmissions || false
+    });
+    setEditingTest(test);
+    setEditStep(1);
+  };
+
+>>>>>>> Stashed changes
   // If viewing individual submission
   if (selectedSubmission) {
     return (
@@ -1260,6 +1346,7 @@ function HeadResults() {
       <div className="results-header">
         <h3>Submissions for: {selectedTest.title}</h3>
         <div className="results-actions">
+<<<<<<< Updated upstream
           <button 
             className="btn btn-outline btn-sm" 
             onClick={() => loadSubmissions(selectedTest.id)}
@@ -1268,6 +1355,38 @@ function HeadResults() {
             🔄 Refresh
           </button>
           <button className="btn btn-outline" onClick={() => setSelectedTest(null)}>← Back to Tests</button>
+=======
+          <div className="export-actions">
+            <button
+              className={`btn btn-outline btn-sm ${exporting ? 'btn-loading' : ''}`}
+              onClick={() => exportSubmissionsToExcel({ submissions, selectedTest, setLoading: setExporting })}
+              disabled={exporting || submissions.length === 0}
+              title="Export submissions to Excel"
+            >
+              <Icon name="notebook" size="small" /> Export Excel
+            </button>
+            
+            <button
+              className={`btn btn-outline btn-sm ${exporting ? 'btn-loading' : ''}`}
+              onClick={() => exportSubmissionsToPDF({ submissions, selectedTest, setLoading: setExporting, exportType: 'head' })}
+              disabled={exporting || submissions.length === 0}
+              title="Export submissions to PDF"
+              style={{ marginLeft: '8px' }}
+            >
+              <Icon name="paper" size="small" /> Export PDF
+            </button>
+          </div>
+          <div className="refresh-actions">
+            <button 
+              className="btn btn-outline btn-sm" 
+              onClick={() => loadSubmissions(selectedTest.id)}
+              disabled={loading}
+            >
+              🔄 Refresh
+            </button>
+            <button className="btn btn-outline" onClick={() => setSelectedTest(null)}>← Back to Tests</button>
+          </div>
+>>>>>>> Stashed changes
         </div>
       </div>
       

@@ -77,7 +77,7 @@ function CandidateTests() {
         const uniqueTests = Array.from(testMap.values());
         setTests(uniqueTests);
       } catch (e) {
-        console.log('[Candidate:loadTests:error]', e.code, e.message);
+       
         setError(e.message || 'Failed to load tests');
       } finally {
         setLoading(false);
@@ -86,6 +86,61 @@ function CandidateTests() {
     loadTests();
   }, []);
 
+<<<<<<< Updated upstream
+=======
+  // Function to check submissions before starting test
+  const checkSubmissionsAndStart = async (test) => {
+    if (!user) return;
+
+    setCheckingSubmissions(true);
+    try {
+      // Check existing submissions
+      const existingSubmissionsQuery = query(
+        collection(db, 'results'),
+        where('candidateId', '==', user.uid),
+        where('testId', '==', test.id)
+      );
+      const existingSubmissions = await getDocs(existingSubmissionsQuery);
+      const submissionCount = existingSubmissions.size;
+       
+
+      // Logic based on submission count and settings
+      if (submissionCount === 0) {
+        // First attempt - proceed to test
+        
+        navigate(`/test/${test.id}`);
+      } else if (submissionCount > 0 && !test.allowMultipleSubmissions) {
+        // Not first attempt and multiple submissions not allowed - show blocked card
+        
+        setBlockMessage(
+          `This test does not allow multiple submissions. You have already submitted this test ${submissionCount} time${submissionCount > 1 ? 's' : ''}. Please contact your branch head if you need to retake this test.`
+        );
+        setShowBlockedCard(true);
+      } else if (submissionCount > 0 && test.allowMultipleSubmissions) {
+        // Multiple submissions allowed - check limit (allow up to 3 total submissions)
+        if (submissionCount >= 3) {
+        
+          setBlockMessage(
+            `You have reached the maximum number of attempts (3) for this test. You have already submitted this test ${submissionCount} times. Please contact your branch head if you need additional attempts.`
+          );
+          setShowBlockedCard(true);
+        } else {
+          // Within limit - proceed to test (submissions 2 and 3)
+         
+          navigate(`/test/${test.id}`);
+        }
+      }
+      
+    } catch (error) {
+      console.error('Error checking submission status:', error);
+      // On error, default to proceeding to test
+      navigate(`/test/${test.id}`);
+    } finally {
+      setCheckingSubmissions(false);
+    }
+  };
+
+>>>>>>> Stashed changes
   const filteredTests = tests.filter(t => {
     const q = searchQuery.toLowerCase();
     return (
@@ -268,7 +323,7 @@ function CandidateResults() {
         setResults(resultsWithTestData);
         setFilteredResults(resultsWithTestData); // Initialize filtered results
       } catch (e) {
-        console.log('[Candidate:loadResults:error]', e.code, e.message);
+ 
         setError(e.message || 'Failed to load results');
       } finally {
         setLoading(false);

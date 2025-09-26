@@ -183,9 +183,8 @@ function AdminUsers() {
         
         setUsers(usersData);
         setLoading(false);
-        console.log('Users loaded successfully:', usersData.length);
+        
       } catch (err) {
-        console.error('Error loading users:', err);
         setError(`Failed to load users: ${err.message}`);
         setLoading(false);
       }
@@ -905,7 +904,7 @@ function TestPaperView({ test, onBack }) {
         
         setQuestions(questionsData);
         setLoading(false);
-        console.log('Loaded questions for test paper:', questionsData);
+ 
       } catch (err) {
         console.error('Failed to load questions:', err);
         setLoading(false);
@@ -1049,6 +1048,77 @@ function TestSubmissionsView({ test, submissions, onBack }) {
     return date.toLocaleString();
   };
 
+<<<<<<< Updated upstream
+=======
+  const handleDeleteSubmission = async (submission) => {
+    if (!canDeleteSubmissions) {
+      alert('You do not have permission to delete submissions');
+      return;
+    }
+    const confirmDelete = window.confirm(
+      `Delete submission for "${submission.candidateName || submission.candidateId}"?\n\n` +
+      `This will permanently remove:\n` +
+      `• Their test result for "${test.title}"\n` +
+      `• All monitoring logs for this test attempt\n` +
+      `• All paste/tab switch logs for this test\n\n` +
+      `This action cannot be undone. Continue?`
+    );
+    if (!confirmDelete) return;
+
+    try {
+    
+      
+      // 1. Delete the main submission result
+      await deleteDoc(doc(db, 'results', submission.id));
+     
+
+      // 2. Delete monitoring logs for this candidate and test
+      const monitoringQuery = query(
+        collection(db, 'monitoring'),
+        where('candidateId', '==', submission.candidateId),
+        where('testId', '==', test.id)
+      );
+      const monitoringSnapshot = await getDocs(monitoringQuery);
+      const monitoringDeletes = monitoringSnapshot.docs.map(doc => deleteDoc(doc.ref));
+      await Promise.all(monitoringDeletes);
+      
+
+      // 3. Delete paste logs for this candidate and test
+      const pasteQuery = query(
+        collection(db, 'pasteLogs'),
+        where('candidateId', '==', submission.candidateId),
+        where('testId', '==', test.id)
+      );
+      const pasteSnapshot = await getDocs(pasteQuery);
+      const pasteDeletes = pasteSnapshot.docs.map(doc => deleteDoc(doc.ref));
+      await Promise.all(pasteDeletes);
+ 
+
+      // 4. Delete tab switch logs for this candidate and test
+      const tabSwitchQuery = query(
+        collection(db, 'tabSwitchLogs'),
+        where('candidateId', '==', submission.candidateId),
+        where('testId', '==', test.id)
+      );
+      const tabSwitchSnapshot = await getDocs(tabSwitchQuery);
+      const tabSwitchDeletes = tabSwitchSnapshot.docs.map(doc => deleteDoc(doc.ref));
+      await Promise.all(tabSwitchDeletes);
+ 
+
+      // 5. Update local UI
+      setLocalSubmissions(prev => prev.filter(s => s.id !== submission.id));
+      setSelectedSubmission(null);
+      
+      const totalDeleted = 1 + monitoringSnapshot.size + pasteSnapshot.size + tabSwitchSnapshot.size;
+      alert(`Submission and all related data deleted successfully!\n\nDeleted ${totalDeleted} records total:\n• 1 submission result\n• ${monitoringSnapshot.size} monitoring logs\n• ${pasteSnapshot.size} paste logs\n• ${tabSwitchSnapshot.size} tab switch logs`);
+      
+    } catch (error) {
+      console.error('Error deleting submission and related data:', error);
+      alert('Failed to delete submission: ' + (error.message || 'Unknown error'));
+    }
+  };
+
+>>>>>>> Stashed changes
   // If viewing individual submission
   if (selectedSubmission) {
     return (
@@ -1104,9 +1174,36 @@ function TestSubmissionsView({ test, submissions, onBack }) {
                 <td>{formatDateTime(submission.submittedAt)}</td>
                 <td>
                   <span className="score">
+<<<<<<< Updated upstream
                     {submission.totalMarksAwarded !== undefined ? 
                       `${submission.totalMarksAwarded}/${submission.maxPossibleMarks || 'N/A'}` : 
                       submission.score !== undefined ? `${submission.score}%` : 'Not graded'}
+=======
+                    {(() => {
+                     
+                      
+                      // Show actual marks distributed by head/admin out of test total marks
+                      if (submission.totalMarksAwarded !== undefined && submission.totalMarksAwarded !== null) {
+                        let testTotalMarks = test?.totalMarks || 100;
+                        
+                        // Fix data issue: if totalMarksAwarded > testTotalMarks, likely testTotalMarks is wrong
+                        if (submission.totalMarksAwarded > testTotalMarks && testTotalMarks < 50) {
+                          // If test total marks seems too low and awarded marks is higher, use awarded marks as reference
+                          testTotalMarks = 100; // Default to 100 as it's more reasonable
+                          console.warn('Data issue detected: totalMarksAwarded > testTotalMarks, using 100 as fallback');
+                        }
+                        
+                        return `${submission.totalMarksAwarded}/${testTotalMarks}`;
+                      } else if (submission.score !== undefined) {
+                        // If only percentage is available, try to calculate marks
+                        const testTotalMarks = test?.totalMarks || 100;
+                        const calculatedMarks = Math.round((submission.score / 100) * testTotalMarks);
+                        return `${calculatedMarks}/${testTotalMarks} (${submission.score}%)`;
+                      } else {
+                        return 'Not graded';
+                      }
+                    })()}
+>>>>>>> Stashed changes
                   </span>
                 </td>
                 <td>
@@ -1147,7 +1244,7 @@ function SubmissionDetailView({ submission, test, onBack }) {
   const [marksDistribution, setMarksDistribution] = useState({});
   const [totalMarks, setTotalMarks] = useState(0);
   const [saving, setSaving] = useState(false);
-  const [showMarksPanel, setShowMarksPanel] = useState(true);
+
 
   useEffect(() => {
     const loadSubmissionDetails = async () => {
@@ -1260,7 +1357,7 @@ function SubmissionDetailView({ submission, test, onBack }) {
       });
 
       alert('Marks saved successfully!');
-      setShowMarksPanel(false);
+     
     } catch (error) {
       console.error('Error saving marks:', error);
       alert('Failed to save marks. Please try again.');
@@ -1550,6 +1647,7 @@ function AdminMonitoring() {
             // Fallback to using last 4 chars of UID
             participantData.candidateName = `Candidate ${participantData.candidateId.slice(-4)}`;
           }
+<<<<<<< Updated upstream
         }
         
         // Final fallback
@@ -1560,6 +1658,71 @@ function AdminMonitoring() {
         return participantData;
       }));
       setParticipants(participantsData);
+=======
+          
+          // Final fallback
+          if (!participantData.candidateName) {
+            participantData.candidateName = 'Unknown';
+          }
+          
+          return participantData;
+        }));
+        
+        setParticipants(participantsData);
+        
+        // Load monitoring data for all participants
+        loadAllMonitoringData(testId, participantsData);
+      });
+      
+      // Store the unsubscribe function for cleanup
+      return unsubscribeParticipants;
+    } catch (err) {
+      console.error('Error loading participants:', err);
+      setError('Failed to load participants');
+    }
+  };
+  
+  const loadAllMonitoringData = async (testId, participantsData) => {
+     
+    try {
+      const monitoringPromises = participantsData.map(async (participant) => {
+        if (!participant.candidateId) {
+           
+          return { [participant.id]: {} };
+        }
+      
+        
+        const monitoringQuery = query(
+          collection(db, 'monitoring'),
+          where('candidateId', '==', participant.candidateId),
+          where('testId', '==', testId)
+        );
+        
+        const snapshot = await getDocs(monitoringQuery);
+        const events = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        
+        
+        
+        // Aggregate monitoring data
+        const aggregatedData = {
+          tabSwitches: events.filter(e => e.type === 'tab_switch' || e.type === 'visibility_change'),
+          copyEvents: events.filter(e => e.type === 'copy'),
+          pasteEvents: events.filter(e => e.type === 'paste'),
+          totalViolations: events.length,
+          lastActivity: events.length > 0 ? Math.max(...events.map(e => e.timestamp?.toMillis() || 0)) : null
+        };
+        
+        
+        
+        return { [participant.id]: aggregatedData };
+      });
+      
+      const results = await Promise.all(monitoringPromises);
+      const monitoringMap = results.reduce((acc, curr) => ({ ...acc, ...curr }), {});
+      
+     
+      setParticipantMonitoring(monitoringMap);
+>>>>>>> Stashed changes
     } catch (err) {
       setError('Failed to load participants');
     }
@@ -1761,9 +1924,215 @@ function AdminMonitoring() {
   );
 }
 
+<<<<<<< Updated upstream
 // Participant Detail View Component
 function ParticipantDetailView({ participant, test, monitoringData, onBack }) {
   const [activeTab, setActiveTab] = useState('overview');
+=======
+// Helper function to get question name from ID
+function getQuestionName(questionId, testData = null, storedQuestionText = null) {
+  if (!questionId) return 'Unknown Question';
+  
+  // If we have stored question text from monitoring data, use it directly
+  if (storedQuestionText && storedQuestionText !== 'Question text not available') {
+    const cleanText = storedQuestionText
+      .replace(/<[^>]*>/g, '') // Remove HTML tags
+      .replace(/\s+/g, ' ') // Replace multiple spaces with single space
+      .trim();
+    const shortText = cleanText.slice(0, 100);
+    return `"${shortText}${cleanText.length > 100 ? '...' : ''}"`;
+  }
+ 
+  
+  
+  // Handle notes fields (e.g., "1758793866121_notes")
+  if (questionId.includes('_notes')) {
+    const baseQuestionId = questionId.replace('_notes', '');
+    
+    // Try to find the actual question text
+    if (testData?.questions) {
+      // First try exact ID match
+      let question = testData.questions.find(q => q.id === baseQuestionId);
+      
+      
+      // If no exact match, try partial ID match
+      if (!question) {
+        question = testData.questions.find(q => q.id.includes(baseQuestionId) || baseQuestionId.includes(q.id));
+         
+      }
+      
+      // If still no match, try string conversion and different ID formats
+      if (!question) {
+        const baseQuestionIdStr = String(baseQuestionId);
+        question = testData.questions.find(q => 
+          String(q.id) === baseQuestionIdStr || 
+          String(q.id).includes(baseQuestionIdStr) || 
+          baseQuestionIdStr.includes(String(q.id))
+        );
+ 
+      }
+      
+       
+      
+      // Try multiple possible question text properties
+      const questionText = question?.questionText || question?.question || question?.text;
+  
+      
+      if (questionText) {
+        // Clean the question text and make it more readable
+        const cleanText = questionText
+          .replace(/<[^>]*>/g, '') // Remove HTML tags
+          .replace(/\s+/g, ' ') // Replace multiple spaces with single space
+          .trim();
+        const shortText = cleanText.slice(0, 80);
+        return `"${shortText}${cleanText.length > 80 ? '...' : ''}" (Notes Field)`;
+      }
+    }
+    
+    return `Question ${baseQuestionId.slice(0, 8)}... (Notes Field)`;
+  }
+  
+  // Try to find the actual question text
+  if (testData?.questions) {
+    // First try exact ID match
+    let question = testData.questions.find(q => q.id === questionId);
+    
+    
+    // If no exact match, try partial ID match (in case of ID variations)
+    if (!question) {
+      question = testData.questions.find(q => q.id.includes(questionId) || questionId.includes(q.id));
+       
+    }
+    
+    // If still no match, try string conversion and different ID formats
+    if (!question) {
+      const questionIdStr = String(questionId);
+      
+      
+      question = testData.questions.find(q => 
+        String(q.id) === questionIdStr || 
+        String(q.id).includes(questionIdStr) || 
+        questionIdStr.includes(String(q.id))
+      );
+      
+    }
+    
+    // If still no match, try to find by any partial match
+    if (!question) {
+      
+      for (let i = 0; i < testData.questions.length; i++) {
+        const q = testData.questions[i];
+         
+        if (String(q.id) === String(questionId)) {
+          question = q;
+        
+          break;
+        }
+      }
+    }
+    
+    // If still no match, try to find by timestamp similarity (for timestamp-based IDs)
+    if (!question && questionId.length > 10) {
+     
+      const targetTimestamp = parseInt(questionId);
+      if (!isNaN(targetTimestamp)) {
+        // Find the closest timestamp match
+      
+        let smallestDiff = Infinity;
+        
+        for (const q of testData.questions) {
+          const qTimestamp = parseInt(q.id);
+          if (!isNaN(qTimestamp)) {
+            const diff = Math.abs(targetTimestamp - qTimestamp);
+            if (diff < smallestDiff) {
+              smallestDiff = diff;
+              
+            }
+          }
+        }
+        
+        
+      }
+    }
+    
+    
+    const questionText = question?.questionText || question?.question || question?.text;
+     
+    
+    if (questionText) {
+      // Clean the question text and make it more readable
+      const cleanText = questionText
+        .replace(/<[^>]*>/g, '') // Remove HTML tags
+        .replace(/\s+/g, ' ') // Replace multiple spaces with single space
+        .trim();
+      const shortText = cleanText.slice(0, 100);
+      return `"${shortText}${cleanText.length > 100 ? '...' : ''}"`;
+    }
+  }
+  
+  // For regular question IDs, show in a readable format
+  if (questionId.length > 10) {
+    // If it's a long ID (timestamp-based), show it as "Question [first few digits]"
+    
+    // Try to show a helpful message with available questions
+    if (testData?.questions?.length > 0) {
+      const firstQuestion = testData.questions[0];
+      const firstQuestionText = firstQuestion?.questionText || firstQuestion?.question || firstQuestion?.text;
+      if (firstQuestionText) {
+        return ` ${firstQuestionText.substring(0, 50)}${firstQuestionText.length > 50 ? '...' : ''}`;
+      }
+    }
+    
+    return `Question ${questionId.slice(0, 8)}... (ID not found in current test)`;
+  }
+  
+  return `Question ${questionId} (ID not found in current test)`;
+}
+
+// Participant Detail View Component
+function ParticipantDetailView({ participant, test, monitoringData, onBack }) {
+  const [activeTab, setActiveTab] = useState('overview');
+  const [testWithQuestions, setTestWithQuestions] = useState(null);
+
+  // Load complete test data with questions
+  useEffect(() => {
+    const loadTestQuestions = async () => {
+      if (!test?.id) return;
+      
+      try {
+        
+        const testQuery = query(
+          collection(db, 'tests'),
+          where('__name__', '==', test.id)
+        );
+        const testSnapshot = await getDocs(testQuery);
+        
+        if (!testSnapshot.empty) {
+          const testDoc = testSnapshot.docs[0];
+          const testData = { id: testDoc.id, ...testDoc.data() };
+          
+          // Load questions subcollection
+          const questionsQuery = collection(db, 'tests', test.id, 'questions');
+          const questionsSnapshot = await getDocs(questionsQuery);
+          const questions = questionsSnapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+          }));
+          
+          testData.questions = questions;
+          setTestWithQuestions(testData);
+          
+        }
+      } catch (error) {
+        console.error('Error loading test questions:', error);
+        // Fallback to using the test data we have
+        setTestWithQuestions(test);
+      }
+    };
+
+    loadTestQuestions();
+  }, [test]);
+>>>>>>> Stashed changes
 
   const formatDateTime = (timestamp) => {
     if (!timestamp) return 'N/A';
@@ -1771,9 +2140,23 @@ function ParticipantDetailView({ participant, test, monitoringData, onBack }) {
     return date.toLocaleString();
   };
 
+<<<<<<< Updated upstream
   const tabSwitches = participant.tabSwitches || [];
   const copyEvents = participant.copyEvents || [];
   const pasteEvents = participant.pasteEvents || [];
+=======
+  // Process monitoring data by type
+  const tabSwitches = monitoringData.filter(event => 
+    event.type === 'tab_switch' || event.type === 'visibility_change' || event.type === 'focus_lost'
+  );
+  const copyEvents = monitoringData.filter(event => event.type === 'copy');
+  const pasteEvents = monitoringData.filter(event => event.type === 'paste');
+  
+  // Additional monitoring events
+  const keyboardEvents = monitoringData.filter(event => event.type === 'keyboard_shortcut');
+  const rightClickEvents = monitoringData.filter(event => event.type === 'right_click');
+ 
+>>>>>>> Stashed changes
 
   return (
     <div className="participant-detail-view">
@@ -1913,7 +2296,7 @@ function ParticipantDetailView({ participant, test, monitoringData, onBack }) {
 function AdminDashboard() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('overview');
-  const { user, userDoc, loading: contextLoading } = useFirebase();
+  const { loading: contextLoading } = useFirebase();
 
   const tabs = useMemo(() => [
     { label: 'Overview', value: 'overview' },

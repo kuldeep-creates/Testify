@@ -59,7 +59,6 @@ export function FirebaseProvider({ children }) {
           assignedRole = existingRole; // Keep any other existing role
         }
         
-        console.log('[FirebaseContext] User email:', u.email, 'existingRole:', existingRole, 'assignedRole:', assignedRole);
         if (!snap.exists()) {
           await setDoc(ref, {
             userId: u.uid,
@@ -76,14 +75,14 @@ export function FirebaseProvider({ children }) {
           // Check if existing user has wrong role and fix it
           const existingData = snap.data();
           if (existingData.role !== assignedRole) {
-            console.log('[FirebaseContext] Fixing role for', u.email, 'from', existingData.role, 'to', assignedRole);
+            
             try {
               await updateDoc(ref, { 
                 role: assignedRole,
                 lastLogin: serverTimestamp() 
               });
             } catch (updateError) {
-              console.log('[FirebaseContext] Role update failed:', updateError);
+    
             }
           }
           
@@ -113,7 +112,6 @@ export function FirebaseProvider({ children }) {
         }
       } catch (e) {
         // eslint-disable-next-line no-console
-        console.log('[FirebaseContext:error]', e.code, e.message);
         setError(e.message || 'Failed to load user');
       } finally {
         setLoading(false);
@@ -140,35 +138,5 @@ export function useFirebase() {
   return useContext(FirebaseContext);
 }
 
-// Temporary functions to manually set user role/status - call these from browser console
-window.setUserRole = async (role) => {
-  try {
-    const user = auth.currentUser;
-    if (!user) {
-      console.log('No user logged in');
-      return;
-    }
-    
-    const ref = doc(db, 'user', user.uid);
-    await updateDoc(ref, { role: role });
-    console.log(`Role updated to: ${role}. Please refresh the page.`);
-  } catch (error) {
-    console.error('Error updating role:', error);
-  }
-};
 
-window.blockUser = async (blocked = true) => {
-  try {
-    const user = auth.currentUser;
-    if (!user) {
-      console.log('No user logged in');
-      return;
-    }
-    
-    const ref = doc(db, 'user', user.uid);
-    await updateDoc(ref, { blocked: blocked });
-    console.log(`User ${blocked ? 'blocked' : 'unblocked'}. Please refresh the page.`);
-  } catch (error) {
-    console.error('Error updating block status:', error);
-  }
-};
+ 
