@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { signInWithEmailAndPassword } from 'firebase/auth';
+import { sendPasswordResetEmail, signInWithEmailAndPassword } from 'firebase/auth';
+import { useEffect, useState } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 
 import { auth } from '../../firebase';
 import Logger from '../../utils/logger';
+import { showError, showSuccess } from '../../utils/notifications';
 import './Login.css';
 
 function Login() {
@@ -14,17 +15,60 @@ function Login() {
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
   const [validation, setValidation] = useState({ email: '', password: '' });
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [resetEmail, setResetEmail] = useState('');
+  const location = useLocation();
+
+  // Check for registration success and verification success messages
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (params.get('registered') === 'true') {
+      showSuccess('Registration successful! Please check your email to verify your account before signing in.');
+      window.history.replaceState({}, document.title, location.pathname);
+    } else if (params.get('verified') === 'true') {
+      showSuccess('🎉 Email verified successfully! You can now sign in to access your account.');
+      window.history.replaceState({}, document.title, location.pathname);
+    }
+  }, [location]);
+
+  const handleForgotPassword = async () => {
+    if (!resetEmail.trim()) {
+      showError('Please enter your email address first.');
+      return;
+    }
+
+    try {
+      await sendPasswordResetEmail(auth, resetEmail.trim());
+      showSuccess('Password reset email sent! Please check your inbox.');
+      setShowForgotPassword(false);
+      setResetEmail('');
+    } catch (error) {
+      Logger.error('Error sending password reset email', {
+        errorCode: error.code,
+        errorMessage: error.message
+      });
+
+      const errorMessages = {
+        'auth/user-not-found': 'No account found with this email address.',
+        'auth/invalid-email': 'Please enter a valid email address.',
+        'auth/too-many-requests': 'Too many requests. Please wait a moment and try again.'
+      };
+
+      showError(errorMessages[error.code] || 'Failed to send password reset email. Please try again.');
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
     setSuccess('');
+
     const newValidation = { email: '', password: '' };
     if (!email.trim()) {newValidation.email = 'Email is required';}
     if (password.length < 6) {newValidation.password = 'Password must be at least 6 characters';}
     setValidation(newValidation);
     if (newValidation.email || newValidation.password) {return;}
-    
+
     setLoading(true);
     try {
       const normalizedEmail = email.trim();
@@ -37,7 +81,7 @@ function Login() {
         'auth/invalid-credential': 'Invalid email or password. Please try again.',
         'auth/wrong-password': 'Incorrect password. Try again or reset it.',
         'auth/user-not-found': 'No account found for this email. Please create one.',
-        'auth/too-many-requests': 'Too many attempts. Please wait a bit and try again.',
+        'auth/too-many-requests': 'Too many attempts. Please wait a bit and try again.'
       };
       setError(byCode[err.code] || 'Failed to sign in. Please try again.');
     } finally {
@@ -45,7 +89,7 @@ function Login() {
     }
   };
 
-  
+
   return (
     <div className="login-container" role="main">
       {/* Background Illustrations */}
@@ -123,9 +167,56 @@ function Login() {
                   )}
                 </div>
 
+                {/* Forgot Password Section */}
+                <div className="login-forgot-password">
+                  {!showForgotPassword ? (
+                    <button
+                      type="button"
+                      className="forgot-password-link"
+                      onClick={() => setShowForgotPassword(true)}
+                    >
+                      Forgot Password?
+                    </button>
+                  ) : (
+                    <div className="forgot-password-form">
+                      <label className="login-label" htmlFor="resetEmail">
+                        Enter your email to reset password:
+                      </label>
+                      <div className="forgot-password-input-group">
+                        <input
+                          id="resetEmail"
+                          type="email"
+                          className="login-input"
+                          placeholder="Enter your email"
+                          value={resetEmail}
+                          onChange={(e) => setResetEmail(e.target.value)}
+                        />
+                        <div className="forgot-password-buttons">
+                          <button
+                            type="button"
+                            className="btn btn-secondary btn-small"
+                            onClick={() => {
+                              setShowForgotPassword(false);
+                              setResetEmail('');
+                            }}
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-primary btn-small"
+                            onClick={handleForgotPassword}
+                          >
+                            Send Reset Email
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
 
                 {/* Login Button */}
-                <button 
+                <button
                   className={`btn btn-primary ${loading ? 'btn-loading' : ''}`}
                   type="submit"
                   disabled={loading}

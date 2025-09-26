@@ -1,4 +1,4 @@
-/* Register Page Styles */
+/* Register Component Styles */
 .register-container {
   min-height: 100vh;
   background: linear-gradient(135deg, #f8fafc 0%, #e0f2fe 50%, #e0e7ff 100%);
@@ -6,6 +6,139 @@
   align-items: center;
   justify-content: center;
   padding: 1rem;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Confirmation Card Styles */
+.confirmation-card {
+  background: white;
+  border-radius: 1rem;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  padding: 2.5rem;
+  max-width: 500px;
+  width: 100%;
+  text-align: center;
+  animation: slideInUp 0.5s ease-out;
+}
+
+.confirmation-icon {
+  margin: 0 auto 1.5rem;
+  width: 4rem;
+  height: 4rem;
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.confirmation-check {
+  width: 2rem;
+  height: 2rem;
+  color: white;
+  stroke-width: 3;
+}
+
+.confirmation-title {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: #1f2937;
+  margin-bottom: 1rem;
+}
+
+.confirmation-message {
+  font-size: 1.125rem;
+  color: #4b5563;
+  margin-bottom: 2rem;
+  line-height: 1.6;
+}
+
+.confirmation-message strong {
+  color: #2563eb;
+  font-weight: 600;
+}
+
+.confirmation-steps {
+  background-color: #f8fafc;
+  border-radius: 0.75rem;
+  padding: 1.5rem;
+  margin-bottom: 2rem;
+  text-align: left;
+}
+
+.confirmation-steps h3 {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 1rem;
+}
+
+.confirmation-steps ol {
+  margin: 0;
+  padding-left: 1.25rem;
+  color: #6b7280;
+}
+
+.confirmation-steps li {
+  margin-bottom: 0.5rem;
+  line-height: 1.5;
+}
+
+.confirmation-actions {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.confirmation-actions .btn {
+  min-width: 140px;
+  padding: 0.75rem 1.5rem;
+}
+
+.confirmation-help {
+  padding-top: 1rem;
+  border-top: 1px solid #e5e7eb;
+}
+
+.confirmation-help p {
+  font-size: 0.875rem;
+  color: #6b7280;
+  margin: 0;
+  line-height: 1.5;
+}
+
+@keyframes slideInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Responsive adjustments for confirmation card */
+@media (max-width: 640px) {
+  .confirmation-card {
+    padding: 2rem 1.5rem;
+    margin: 1rem;
+  }
+  
+  .confirmation-actions {
+    flex-direction: column;
+  }
+  
+  .confirmation-actions .btn {
+    width: 100%;
+  }
+  
+  .confirmation-title {
+    font-size: 1.5rem;
+  }
 }
 
 .register-background {
