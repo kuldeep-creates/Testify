@@ -1,7 +1,8 @@
-import React from 'react';
 import { signOut } from 'firebase/auth';
-import { auth } from '../../firebase';
+import React from 'react';
 import { useNavigate } from 'react-router-dom';
+
+import { auth } from '../../firebase';
 import './Blocked.css';
 
 function Blocked() {

@@ -1,7 +1,11 @@
+import { doc, getDoc, collection, getDocs } from 'firebase/firestore';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { doc, getDoc, collection, getDocs } from 'firebase/firestore';
+
 import { db } from '../firebase';
+
+import Logger from './logger';
+import { showSuccess, showError } from './notifications';
 
 /**
  * Export test submissions to PDF format
@@ -13,24 +17,25 @@ import { db } from '../firebase';
  * @returns {Promise<void>}
  */
 export const exportSubmissionsToPDF = async ({ submissions, selectedTest, setLoading, exportType = 'head' }) => {
+  let fileName = '';
   try {
-    console.log('Starting PDF export with:', { submissions: submissions.length, test: selectedTest.title, exportType });
+    Logger.info('Starting PDF export', { submissions: submissions.length, test: selectedTest.title, exportType });
     setLoading(true);
     
     // First, fetch the test questions to get actual question text
     let testQuestions = [];
-    console.log('PDF: Starting question fetch for test ID:', selectedTest.id);
+    Logger.debug('Starting question fetch for test', { testId: selectedTest.id });
     
     try {
       // 1) Prefer the questions subcollection (source of truth)
-      console.log('PDF: Fetching questions from subcollection tests/{id}/questions');
+      Logger.debug('Fetching questions from subcollection');
       const questionsSnapshot = await getDocs(collection(db, 'tests', selectedTest.id, 'questions'));
       if (!questionsSnapshot.empty) {
         testQuestions = questionsSnapshot.docs.map(qDoc => {
           const data = qDoc.data();
           return { id: data.questionId || qDoc.id, ...data };
         });
-        console.log('PDF: Loaded questions from subcollection:', testQuestions);
+        Logger.debug('Loaded questions from subcollection', { count: testQuestions.length });
       }
 
       // 2) Fallback: embedded questions in tests doc
@@ -42,9 +47,9 @@ export const exportSubmissionsToPDF = async ({ submissions, selectedTest, setLoa
           if (testQuestions.length === 0 && testData.questions && typeof testData.questions === 'object' && !Array.isArray(testData.questions)) {
             testQuestions = Object.values(testData.questions);
           }
-          console.log('PDF: Loaded questions from tests doc:', testQuestions);
+          Logger.debug('Loaded questions from tests doc', { count: testQuestions.length });
         } else {
-          console.log('PDF: Test document not found in tests collection');
+          Logger.warn('Test document not found in tests collection');
         }
       }
 
@@ -54,18 +59,18 @@ export const exportSubmissionsToPDF = async ({ submissions, selectedTest, setLoa
         if (altTestDoc.exists()) {
           const altTestData = altTestDoc.data();
           testQuestions = altTestData.questions || [];
-          console.log('PDF: Loaded questions from legacy collection:', testQuestions);
+          Logger.debug('Loaded questions from legacy collection', { count: testQuestions.length });
         }
       }
 
       // 4) Prop fallback
       if (testQuestions.length === 0 && selectedTest.questions) {
         testQuestions = selectedTest.questions;
-        console.log('PDF: Loaded questions from selectedTest prop:', testQuestions);
+        Logger.debug('Loaded questions from selectedTest prop', { count: testQuestions.length });
       }
       
     } catch (error) {
-      console.error('Error fetching test questions:', error);
+      Logger.error('Error fetching test questions', null, error);
     }
 
     // Fetch detailed user information and answers for each submission
@@ -91,7 +96,7 @@ export const exportSubmissionsToPDF = async ({ submissions, selectedTest, setLoa
               };
             }
           } catch (error) {
-            console.error('Error fetching user data for export:', error);
+            Logger.error('Error fetching user data for export', { candidateId: submission.candidateId }, error);
           }
         }
 
@@ -138,8 +143,10 @@ export const exportSubmissionsToPDF = async ({ submissions, selectedTest, setLoa
               return testQuestions.indexOf(a) - testQuestions.indexOf(b);
             });
             
-            console.log('PDF: Original questions order:', testQuestions.map(q => ({ id: q.id, text: q.questionText?.substring(0, 30) })));
-            console.log('PDF: Sorted questions order:', sortedQuestions.map(q => ({ id: q.id, text: q.questionText?.substring(0, 30) })));
+            Logger.debug('Question ordering', {
+              original: testQuestions.map(q => ({ id: q.id, text: q.questionText?.substring(0, 30) })),
+              sorted: sortedQuestions.map(q => ({ id: q.id, text: q.questionText?.substring(0, 30) }))
+            });
             
             // Use sorted test questions to maintain sequence
             sortedQuestions.forEach((question, index) => {
@@ -185,7 +192,7 @@ export const exportSubmissionsToPDF = async ({ submissions, selectedTest, setLoa
             });
           } else {
             // No test questions found, use answer keys directly with smart inference
-            console.log('PDF: No test questions found, using answer keys directly');
+            Logger.warn('No test questions found, using answer keys directly');
             answerKeys.forEach((answerKey) => {
               const answer = submission.answers[answerKey];
               // Show full answer without truncation, use "-" if no answer
@@ -220,7 +227,7 @@ export const exportSubmissionsToPDF = async ({ submissions, selectedTest, setLoa
 
     // Create PDF document
     const pdfDoc = new jsPDF('landscape'); // Use landscape for more columns
-    console.log('PDF document created successfully');
+    Logger.debug('PDF document created successfully');
     
     // Add title based on export type
     pdfDoc.setFontSize(16);
@@ -275,7 +282,7 @@ export const exportSubmissionsToPDF = async ({ submissions, selectedTest, setLoa
       });
     } else {
       // If no test questions, create neutral headers based on the first submission's answer count
-      console.log('PDF: No test questions found, using neutral headers');
+      Logger.warn('No test questions found, using neutral headers');
       if (submissions.length > 0 && submissions[0].answers) {
         const answerKeys = Object.keys(submissions[0].answers).filter(key => 
           !key.includes('_notes') && 
@@ -300,7 +307,7 @@ export const exportSubmissionsToPDF = async ({ submissions, selectedTest, setLoa
     const headerColor = exportType === 'admin' ? [59, 130, 246] : [147, 51, 234]; // Blue for admin, Purple for head
 
     // Add table using autoTable
-    console.log('Adding table with headers:', allHeaders);
+    Logger.debug('Adding table to PDF', { headerCount: allHeaders.length });
     
     // Use the imported autoTable function
     autoTable(pdfDoc, {
@@ -330,16 +337,15 @@ export const exportSubmissionsToPDF = async ({ submissions, selectedTest, setLoa
 
     // Generate filename with test title and date
     const filePrefix = exportType === 'admin' ? 'Admin_' : '';
-    const fileName = `${selectedTest.title.replace(/[^a-zA-Z0-9]/g, '_')}_${filePrefix}Results_${new Date().toISOString().split('T')[0]}.pdf`;
+    fileName = `${selectedTest.title.replace(/[^a-zA-Z0-9]/g, '_')}_${filePrefix}Results_${new Date().toISOString().split('T')[0]}.pdf`;
     
-    console.log('Saving PDF with filename:', fileName);
+    Logger.info('Saving PDF file', { fileName });
     pdfDoc.save(fileName);
     
-    alert('PDF file exported successfully!');
+    showSuccess('PDF file exported successfully!');
   } catch (error) {
-    console.error('Error exporting to PDF:', error);
-    console.error('Error details:', error.message, error.stack);
-    alert(`Failed to export PDF file: ${error.message}. Please try again.`);
+    Logger.error('Error exporting to PDF', { fileName }, error);
+    showError(`Failed to export PDF file: ${error.message}. Please try again.`, error);
   } finally {
     setLoading(false);
   }

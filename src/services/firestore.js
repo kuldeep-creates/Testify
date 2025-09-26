@@ -1,11 +1,12 @@
 import { addDoc, arrayUnion, collection, doc, getDoc, getDocs, increment, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
+
 import { db } from '../firebase';
 
 // Tests
 export async function fetchTestWithQuestions(testId) {
   const testRef = doc(db, 'tests', testId);
   const testSnap = await getDoc(testRef);
-  if (!testSnap.exists()) return null;
+  if (!testSnap.exists()) {return null;}
   const qSnap = await getDocs(collection(testRef, 'questions'));
   const questions = qSnap.docs.map(d => {
     const questionData = d.data();

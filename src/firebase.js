@@ -1,18 +1,9 @@
 // Firebase configuration and initialization
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
-import { getFirestore, connectFirestoreEmulator, enableNetwork, disableNetwork } from 'firebase/firestore';
+import { getFirestore, enableNetwork, disableNetwork } from 'firebase/firestore';
 
-// Firebase project config (provided by user)
-const firebaseConfig = {
-  apiKey: "AIzaSyAmPj2LcCZH5E7dojWIZe4krDtOWwWwmpg",
-  authDomain: "tester-f8e3c.firebaseapp.com",
-  projectId: "tester-f8e3c",
-  storageBucket: "tester-f8e3c.firebasestorage.app",
-  messagingSenderId: "128966097854",
-  appId: "1:128966097854:web:7bb2a56d525f680a8f57ef",
-  measurementId: "G-EQQ26KM5P0"
-};
+import { firebaseConfig } from './config/environment';
 
 const app = initializeApp(firebaseConfig);
 
@@ -48,27 +39,29 @@ export const monitorConnection = () => {
         .catch(() => {
           clearTimeout(timeout);
           connectionStatus = 'offline';
-          resolve(false);
         });
     });
   });
 };
 
-// Global error suppression for specific Firebase errors
-const originalConsoleError = console.error;
-console.error = (...args) => {
-  const message = args[0];
-  if (typeof message === 'string' && message.includes('WebChannelConnection RPC')) {
-    // Suppress WebChannelConnection errors
-    return;
-  }
-  if (typeof message === 'string' && message.includes('@firebase/firestore')) {
-    // Suppress other Firestore connection errors
-    return;
-  }
-  // Log other errors normally
-  originalConsoleError.apply(console, args);
-};
+// Secure error handling for Firebase (only in production)
+if (process.env.NODE_ENV === 'production') {
+  const originalConsoleError = console.error;
+  console.error = (...args) => {
+    const message = args[0];
+    // Only suppress known non-security Firebase connection errors in production
+    if (typeof message === 'string' && 
+        (message.includes('WebChannelConnection RPC') || 
+         message.includes('Failed to get document because the client is offline') || 
+         message.includes('@firebase/firestore'))) {
+      // Log to monitoring service instead of console in production
+      // TODO: Send to monitoring service (Sentry, etc.)
+      return;
+    }
+    // Log all other errors normally (including security-related ones)
+    originalConsoleError.apply(console, args);
+  };
+}
 
 // Suppress unhandled promise rejections for Firebase
 window.addEventListener('unhandledrejection', (event) => {

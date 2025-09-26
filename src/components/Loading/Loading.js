@@ -11,9 +11,9 @@ function Loading({
     return (
       <div className={`inline-loading ${size}`}>
         <div className="inline-spinner">
-          <div className="spinner-ring"></div>
-          <div className="spinner-ring"></div>
-          <div className="spinner-ring"></div>
+          <div className="spinner-ring" />
+          <div className="spinner-ring" />
+          <div className="spinner-ring" />
         </div>
         <span className="inline-text">{message}</span>
       </div>
@@ -25,17 +25,17 @@ function Loading({
       <div className="loading-content">
         <div className="loading-logo">TESTIFY</div>
         <div className="loading-spinner">
-          <div className="spinner-ring"></div>
-          <div className="spinner-ring"></div>
-          <div className="spinner-ring"></div>
-          <div className="spinner-ring"></div>
+          <div className="spinner-ring" />
+          <div className="spinner-ring" />
+          <div className="spinner-ring" />
+          <div className="spinner-ring" />
         </div>
         <div className="loading-text">
           {message}
           <div className="loading-dots">
-            <div className="loading-dot"></div>
-            <div className="loading-dot"></div>
-            <div className="loading-dot"></div>
+            <div className="loading-dot" />
+            <div className="loading-dot" />
+            <div className="loading-dot" />
           </div>
         </div>
         <div className="loading-subtext">{subtext}</div>

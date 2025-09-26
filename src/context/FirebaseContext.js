@@ -1,7 +1,10 @@
-import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
-import { auth, db } from '../firebase';
 import { doc, getDoc, onSnapshot, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
+import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+
+import { appConfig } from '../config/environment';
+import { auth, db } from '../firebase';
+import Logger from '../utils/logger';
 
 const FirebaseContext = createContext(null);
 
@@ -26,7 +29,7 @@ export function FirebaseProvider({ children }) {
         const userEmail = (u.email || '').toLowerCase();
         
         // Define role based on email or existing database role
-        const isDefaultAdmin = userEmail === 'mrjaaduji@gmail.com';
+        const isDefaultAdmin = userEmail === appConfig.superAdminEmail.toLowerCase();
         
         // Check if user already has a role in database (preserve existing roles)
         let existingRole = null;
@@ -59,7 +62,11 @@ export function FirebaseProvider({ children }) {
           assignedRole = existingRole; // Keep any other existing role
         }
         
-        console.log('[FirebaseContext] User email:', u.email, 'existingRole:', existingRole, 'assignedRole:', assignedRole);
+        Logger.debug('User role assignment', {
+          email: u.email,
+          existingRole,
+          assignedRole
+        });
         if (!snap.exists()) {
           await setDoc(ref, {
             userId: u.uid,
@@ -76,27 +83,31 @@ export function FirebaseProvider({ children }) {
           // Check if existing user has wrong role and fix it
           const existingData = snap.data();
           if (existingData.role !== assignedRole) {
-            console.log('[FirebaseContext] Fixing role for', u.email, 'from', existingData.role, 'to', assignedRole);
+            Logger.info('Updating user role', {
+              email: u.email,
+              fromRole: existingData.role,
+              toRole: assignedRole
+            });
             try {
               await updateDoc(ref, { 
                 role: assignedRole,
                 lastLogin: serverTimestamp() 
               });
             } catch (updateError) {
-              console.log('[FirebaseContext] Role update failed:', updateError);
+              Logger.error('Role update failed', null, updateError);
             }
           }
           
           // Real-time subscription & repair
           const unsubDoc = onSnapshot(ref, async (docSnap) => {
-            if (!docSnap.exists()) return;
+            if (!docSnap.exists()) {return;}
             const data = docSnap.data();
             const repair = {};
-            if ((u.email || '') && !data.email) repair.email = u.email;
-            if (!data.userId) repair.userId = u.uid;
-            if (typeof data.blocked !== 'boolean') repair.blocked = false;
-            if (!data.role) repair.role = assignedRole;
-            if (!data.domain) repair.domain = 'Full Stack';
+            if ((u.email || '') && !data.email) {repair.email = u.email;}
+            if (!data.userId) {repair.userId = u.uid;}
+            if (typeof data.blocked !== 'boolean') {repair.blocked = false;}
+            if (!data.role) {repair.role = assignedRole;}
+            if (!data.domain) {repair.domain = 'Full Stack';}
             setUserDoc({ ...data, ...repair });
             if (Object.keys(repair).length > 0) {
               try { await updateDoc(ref, { ...repair, lastLogin: serverTimestamp() }); } catch (_) {}
@@ -106,14 +117,16 @@ export function FirebaseProvider({ children }) {
             if (error && error.message && error.message.includes('WebChannelConnection')) {
               return;
             }
-            console.error('[FirebaseContext] onSnapshot error:', error);
+            Logger.error('User document snapshot error', null, error);
           });
           // store cleanup on user change
           return () => unsubDoc();
         }
       } catch (e) {
-        // eslint-disable-next-line no-console
-        console.log('[FirebaseContext:error]', e.code, e.message);
+        Logger.error('Firebase context error', {
+          errorCode: e.code,
+          errorMessage: e.message
+        }, e);
         setError(e.message || 'Failed to load user');
       } finally {
         setLoading(false);
@@ -145,15 +158,15 @@ window.setUserRole = async (role) => {
   try {
     const user = auth.currentUser;
     if (!user) {
-      console.log('No user logged in');
+      Logger.warn('No user logged in for role update');
       return;
     }
     
     const ref = doc(db, 'user', user.uid);
     await updateDoc(ref, { role: role });
-    console.log(`Role updated to: ${role}. Please refresh the page.`);
+    Logger.info('Role updated successfully', { role });
   } catch (error) {
-    console.error('Error updating role:', error);
+    Logger.error('Error updating role', null, error);
   }
 };
 
@@ -161,14 +174,14 @@ window.blockUser = async (blocked = true) => {
   try {
     const user = auth.currentUser;
     if (!user) {
-      console.log('No user logged in');
+      Logger.warn('No user logged in for block status update');
       return;
     }
     
     const ref = doc(db, 'user', user.uid);
     await updateDoc(ref, { blocked: blocked });
-    console.log(`User ${blocked ? 'blocked' : 'unblocked'}. Please refresh the page.`);
+    Logger.info('User block status updated', { blocked });
   } catch (error) {
-    console.error('Error updating block status:', error);
+    Logger.error('Error updating block status', null, error);
   }
 };

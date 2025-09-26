@@ -1,12 +1,13 @@
 import React from 'react';
 import './App.css';
 import { Routes, Route, Navigate } from 'react-router-dom';
+
+import Account from './components/Account/Account';
+import Blocked from './components/Blocked/Blocked';
+import Dashboard from './components/Dashboard/Dashboard';
 import Login from './components/Login/Login';
 import Register from './components/Register/Register';
-import Dashboard from './components/Dashboard/Dashboard';
 import TestRunner from './components/TestRunner/TestRunner';
-import Blocked from './components/Blocked/Blocked';
-import Account from './components/Account/Account';
 
 function App() {
   return (

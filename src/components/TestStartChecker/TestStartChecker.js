@@ -1,8 +1,10 @@
+import { collection, query, where, getDocs } from 'firebase/firestore';
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { collection, query, where, getDocs } from 'firebase/firestore';
-import { db } from '../../firebase';
+
 import { useFirebase } from '../../context/FirebaseContext';
+import { db } from '../../firebase';
+import Logger from '../../utils/logger';
 import BlockedSubmissionCard from '../BlockedSubmissionCard/BlockedSubmissionCard';
 
 function TestStartChecker({ testData, onPasswordPrompt, onStartTest }) {
@@ -18,7 +20,7 @@ function TestStartChecker({ testData, onPasswordPrompt, onStartTest }) {
   }, [user, testData]);
 
   const checkSubmissionStatus = async () => {
-    if (!user || !testData) return;
+    if (!user || !testData) {return;}
 
     try {
       setLoading(true);
@@ -34,7 +36,7 @@ function TestStartChecker({ testData, onPasswordPrompt, onStartTest }) {
       
       setSubmissionCount(submissionCount);
       
-      console.log('Submission check:', {
+      Logger.debug('Checking submission status', {
         submissionCount,
         allowMultiple: testData.allowMultipleSubmissions,
         testId: testData.testId || testData.id
@@ -43,11 +45,11 @@ function TestStartChecker({ testData, onPasswordPrompt, onStartTest }) {
       // Logic based on submission count and settings
       if (submissionCount === 0) {
         // First attempt - show password box directly
-        console.log('First attempt - showing password prompt');
+        Logger.debug('First attempt - showing password prompt');
         onPasswordPrompt();
       } else if (submissionCount > 0 && !testData.allowMultipleSubmissions) {
         // Not first attempt and multiple submissions not allowed - show blocked card
-        console.log('Multiple submissions not allowed - showing blocked card');
+        Logger.info('Multiple submissions not allowed - showing blocked card');
         setBlockMessage(
           `This test does not allow multiple submissions. You have already submitted this test ${submissionCount} time${submissionCount > 1 ? 's' : ''}. Please contact your domain head if you need to retake this test.`
         );
@@ -55,20 +57,20 @@ function TestStartChecker({ testData, onPasswordPrompt, onStartTest }) {
       } else if (submissionCount > 0 && testData.allowMultipleSubmissions) {
         // Multiple submissions allowed - check limit
         if (submissionCount >= 3) {
-          console.log('Maximum attempts reached - showing blocked card');
+          Logger.info('Maximum attempts reached - showing blocked card');
           setBlockMessage(
             `You have reached the maximum number of attempts (3) for this test. You have already submitted this test ${submissionCount} times. Please contact your domain head if you need additional attempts.`
           );
           setShowBlocked(true);
         } else {
           // Within limit - show password box
-          console.log(`Attempt ${submissionCount + 1}/3 - showing password prompt`);
+          Logger.debug(`Attempt ${submissionCount + 1}/3 - showing password prompt`);
           onPasswordPrompt();
         }
       }
       
     } catch (error) {
-      console.error('Error checking submission status:', error);
+      Logger.error('Error checking submission status', null, error);
       // On error, default to showing password prompt
       onPasswordPrompt();
     } finally {

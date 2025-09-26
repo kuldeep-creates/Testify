@@ -1,8 +1,9 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { doc, getDoc, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+
 import { useFirebase } from '../../context/FirebaseContext';
-import { db, auth } from '../../firebase';
+import { db } from '../../firebase';
 
 function Account() {
   const navigate = useNavigate();
@@ -38,7 +39,7 @@ function Account() {
   }, [loading, user, userDoc, navigate]);
 
   const save = async () => {
-    if (!user) return;
+    if (!user) {return;}
     setSaving(true);
     setError('');
     setSuccess('');

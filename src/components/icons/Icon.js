@@ -2,6 +2,8 @@ import React from 'react';
 import './Icon.css';
 
 // Import all the 3D icons
+import firstPlaceIcon from './1st-place.png';
+import secondPlaceIcon from './2nd-place.png';
 import calendarIcon from './3dicons-calender-dynamic-color.png';
 import computerIcon from './3dicons-computer-dynamic-color.png';
 import copyIcon from './3dicons-copy-dynamic-color.png';
@@ -13,8 +15,6 @@ import notebookIcon from './3dicons-notebook-dynamic-color.png';
 import shieldIcon from './3dicons-shield-dynamic-color.png';
 import targetIcon from './3dicons-target-dynamic-color.png';
 import thumbUpIcon from './3dicons-thumb-up-dynamic-color.png';
-import firstPlaceIcon from './1st-place.png';
-import secondPlaceIcon from './2nd-place.png';
 import thirdPlaceIcon from './3rd-place.png';
 import leaderboardIcon from './leaderboard.png';
 

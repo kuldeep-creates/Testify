@@ -1,8 +1,10 @@
+import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
+
 import { auth, db } from '../../firebase';
-import { setDoc, doc, serverTimestamp } from 'firebase/firestore';
+import Logger from '../../utils/logger';
 import '../../components/Loading/Loading.css';
 import './Register.css';
 
@@ -46,15 +48,19 @@ function Register() {
           lastLogin: serverTimestamp(),
         }, { merge: true });
       } catch (writeErr) {
-        // eslint-disable-next-line no-console
-        console.log('[register:profileWrite:error]', writeErr.code, writeErr.message);
+        Logger.warn('Profile creation failed during registration', {
+          errorCode: writeErr.code,
+          errorMessage: writeErr.message
+        });
         // Continue to dashboard; FirebaseContext will attempt to create profile lazily
       }
       setSuccess('Account created! Redirecting to dashboard...');
       setTimeout(() => navigate('/dashboard'), 800);
     } catch (err) {
-      // eslint-disable-next-line no-console
-      console.log('[register:error]', err.code, err.message);
+      Logger.error('Registration failed', {
+        errorCode: err.code,
+        errorMessage: err.message
+      }, err);
       const byCode = {
         'auth/email-already-in-use': 'This email is already registered. Sign in instead.',
         'auth/invalid-email': 'Please enter a valid email address.',
@@ -69,10 +75,10 @@ function Register() {
   return (
     <div className="register-container" role="main">
       {/* Background Illustrations */}
-      <div className="register-background"></div>
-      <div className="register-background"></div>
-      <div className="register-background"></div>
-      <div className="register-background"></div>
+      <div className="register-background" />
+      <div className="register-background" />
+      <div className="register-background" />
+      <div className="register-background" />
 
       {/* Main Registration Container */}
       <div className="register-main">

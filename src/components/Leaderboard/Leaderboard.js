@@ -1,10 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { collection, getDocs, query, where, doc, updateDoc, getDoc } from 'firebase/firestore';
-import { db } from '../../firebase';
+
 import { useFirebase } from '../../context/FirebaseContext';
-import Loading from '../Loading/Loading';
+import { db } from '../../firebase';
+import { formatDateTime } from '../../utils/dateUtils';
+import Logger from '../../utils/logger';
 import Icon from '../icons/Icon';
 import userInterfaceVideo from '../icons/User Interface.mp4';
+import Loading from '../Loading/Loading';
 import './Leaderboard.css';
 
 const Leaderboard = () => {
@@ -103,7 +106,7 @@ const Leaderboard = () => {
       );
       
       const snapshot = await getDocs(resultsQuery);
-      console.log(`Loading leaderboard for test: ${test.title}, found ${snapshot.docs.length} submissions`);
+      Logger.debug('Loading leaderboard data', { testTitle: test.title, submissionCount: snapshot.docs.length });
       
       const submissions = await Promise.all(snapshot.docs.map(async (doc) => {
         const data = doc.data();
@@ -135,7 +138,7 @@ const Leaderboard = () => {
                 userData = userSnapshot.docs[0].data();
               }
             } catch (queryError) {
-              console.log('Query by uid failed, trying direct document access');
+              Logger.debug('Query by uid failed, trying direct document access');
             }
             
             // Second try: direct document access
@@ -147,7 +150,7 @@ const Leaderboard = () => {
                   userData = userDocSnap.data();
                 }
               } catch (docError) {
-                console.log('Direct document access failed');
+                Logger.debug('Direct document access failed');
               }
             }
             
@@ -156,7 +159,7 @@ const Leaderboard = () => {
               candidateName = userData.name || userData.displayName || userData.fullName || userData.firstName || candidateName;
             }
           } catch (error) {
-            console.log('Could not fetch user data for candidate:', data.candidateId, error);
+            Logger.debug('Could not fetch user data for candidate', { candidateId: data.candidateId }, error);
           }
         }
         
@@ -174,7 +177,7 @@ const Leaderboard = () => {
               return sum + numMark;
             }, 0);
             
-            console.log(`Recalculating marks from questions: ${calculatedTotal} (was ${totalMarksAwarded})`);
+            Logger.debug('Recalculating marks from questions', { calculatedTotal, originalTotal: totalMarksAwarded });
             totalMarksAwarded = calculatedTotal;
           }
         }
@@ -186,7 +189,11 @@ const Leaderboard = () => {
         
         // Final validation - ensure awarded marks don't exceed maximum
         if (totalMarksAwarded > maxPossibleMarks) {
-          console.warn(`Invalid marks detected: ${totalMarksAwarded}/${maxPossibleMarks} for candidate ${candidateName}. Capping to maximum.`);
+          Logger.warn('Invalid marks detected, capping to maximum', { 
+            candidateName, 
+            totalMarksAwarded, 
+            maxPossibleMarks 
+          });
           totalMarksAwarded = maxPossibleMarks;
         }
         
@@ -235,7 +242,7 @@ const Leaderboard = () => {
       setLeaderboardData(rankedSubmissions);
       setLoadingLeaderboard(false);
     } catch (err) {
-      console.error('Error loading leaderboard data:', err);
+      Logger.error('Error loading leaderboard data', null, err);
       setError(`Failed to load leaderboard data: ${err.message || 'Unknown error'}`);
       setLoadingLeaderboard(false);
     }
@@ -243,7 +250,7 @@ const Leaderboard = () => {
 
   // Calculate pie chart data
   const getPieChartData = () => {
-    if (leaderboardData.length === 0) return [];
+    if (leaderboardData.length === 0) {return [];}
     
     const ranges = [
       { label: 'Excellent (90-100%)', min: 90, max: 100, color: '#10b981', count: 0 },
@@ -256,24 +263,18 @@ const Leaderboard = () => {
       // Use the already validated score instead of recalculating
       const percentage = submission.score;
       const range = ranges.find(r => percentage >= r.min && percentage <= r.max);
-      if (range) range.count++;
+      if (range) {range.count++;}
     });
     
     return ranges.filter(range => range.count > 0);
   };
 
-  // Format date
-  const formatDate = (timestamp) => {
-    if (!timestamp) return 'N/A';
-    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-    return date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
-  };
 
   // Get rank badge color
   const getRankBadgeColor = (rank) => {
-    if (rank === 1) return 'gold';
-    if (rank === 2) return 'silver';
-    if (rank === 3) return 'bronze';
+    if (rank === 1) {return 'gold';}
+    if (rank === 2) {return 'silver';}
+    if (rank === 3) {return 'bronze';}
     return 'default';
   };
 
@@ -419,7 +420,7 @@ const Leaderboard = () => {
   // Render pie chart (simple CSS-based)
   const renderPieChart = () => {
     const data = getPieChartData();
-    if (data.length === 0) return null;
+    if (data.length === 0) {return null;}
     
     const total = data.reduce((sum, item) => sum + item.count, 0);
     let cumulativePercentage = 0;
@@ -463,7 +464,7 @@ const Leaderboard = () => {
               <div 
                 className="legend-color" 
                 style={{ backgroundColor: item.color }}
-              ></div>
+               />
               <span className="legend-text">
                 {item.label}: {item.count} ({Math.round((item.count / total) * 100)}%)
               </span>
@@ -757,7 +758,7 @@ const Leaderboard = () => {
                           
                           <td>
                             <span className="submission-date">
-                              {formatDate(submission.submittedAt)}
+                              {formatDateTime(submission.submittedAt)}
                             </span>
                           </td>
                         </tr>

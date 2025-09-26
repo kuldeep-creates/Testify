@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { signInWithEmailAndPassword } from 'firebase/auth';
+
 import { auth } from '../../firebase';
-import '../../components/Loading/Loading.css';
+import Logger from '../../utils/logger';
 import './Login.css';
 
 function Login() {
@@ -19,10 +20,10 @@ function Login() {
     setError('');
     setSuccess('');
     const newValidation = { email: '', password: '' };
-    if (!email.trim()) newValidation.email = 'Email is required';
-    if (password.length < 6) newValidation.password = 'Password must be at least 6 characters';
+    if (!email.trim()) {newValidation.email = 'Email is required';}
+    if (password.length < 6) {newValidation.password = 'Password must be at least 6 characters';}
     setValidation(newValidation);
-    if (newValidation.email || newValidation.password) return;
+    if (newValidation.email || newValidation.password) {return;}
     
     setLoading(true);
     try {
@@ -31,7 +32,7 @@ function Login() {
       setSuccess('Login successful! Redirecting...');
       setTimeout(() => navigate('/dashboard'), 800);
     } catch (err) {
-      console.log('[signin:error]', err.code, err.message);
+      Logger.error('Login failed', { errorCode: err.code, errorMessage: err.message }, err);
       const byCode = {
         'auth/invalid-credential': 'Invalid email or password. Please try again.',
         'auth/wrong-password': 'Incorrect password. Try again or reset it.',
@@ -48,10 +49,10 @@ function Login() {
   return (
     <div className="login-container" role="main">
       {/* Background Illustrations */}
-      <div className="login-background login-bg-1"></div>
-      <div className="login-background login-bg-2"></div>
-      <div className="login-background login-bg-3"></div>
-      <div className="login-background login-bg-4"></div>
+      <div className="login-background login-bg-1" />
+      <div className="login-background login-bg-2" />
+      <div className="login-background login-bg-3" />
+      <div className="login-background login-bg-4" />
 
       {/* Main Login Container */}
       <div className="login-main">

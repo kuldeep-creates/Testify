@@ -2,7 +2,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 
 function BlockedSubmissionCard({ message, onClose }) {
-  const navigate = useNavigate();
+  // const navigate = useNavigate(); // Commented out as not currently used
 
   return (
     <div className="blocked-overlay" style={{

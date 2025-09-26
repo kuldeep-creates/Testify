@@ -1,15 +1,18 @@
+import { signOut } from 'firebase/auth';
+import { collection, getDocs, onSnapshot, doc, updateDoc, deleteDoc, query, where, orderBy, serverTimestamp, getDoc } from 'firebase/firestore';
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { signOut } from 'firebase/auth';
-import { auth, db } from '../../../firebase';
-import { collection, getDocs, onSnapshot, doc, updateDoc, deleteDoc, query, where, orderBy, serverTimestamp, getDoc } from 'firebase/firestore';
+
+import { appConfig } from '../../../config/environment';
 import { useFirebase } from '../../../context/FirebaseContext';
-import Loading from '../../Loading/Loading';
-import Icon from '../../icons/Icon';
-import Leaderboard from '../../Leaderboard/Leaderboard';
-import './AdminDashboard.css';
+import { auth, db } from '../../../firebase';
+import { formatDateTime } from '../../../utils/dateUtils';
 import { exportSubmissionsToExcel } from '../../../utils/excelExport';
 import { exportSubmissionsToPDF } from '../../../utils/pdfExport';
+import Icon from '../../icons/Icon';
+import Leaderboard from '../../Leaderboard/Leaderboard';
+import Loading from '../../Loading/Loading';
+import './AdminDashboard.css';
 
 // 1. Overview Section Component
 function AdminOverview() {
@@ -64,17 +67,11 @@ function AdminOverview() {
     return () => unsubscribers.forEach(unsub => unsub());
   }, []);
 
-  const formatDateTime = (timestamp) => {
-    if (!timestamp) return 'N/A';
-    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-    return date.toLocaleString();
-  };
-
-  if (loading) return (
+  if (loading) {return (
     <div className="loading-tests">
       <Loading message="Loading overview" subtext="Gathering system statistics and data" variant="inline" size="large" />
     </div>
-  );
+  );}
 
   return (
     <div className="admin-overview">
@@ -173,7 +170,7 @@ function AdminUsers() {
   });
 
   // Check if current user can perform admin actions
-  const canPerformAdminActions = currentUser?.email?.toLowerCase() === 'mrjaaduji@gmail.com' || 
+  const canPerformAdminActions = currentUser?.email?.toLowerCase() === appConfig.superAdminEmail.toLowerCase() || 
     currentUser?.role === 'admin';
 
   useEffect(() => {
@@ -187,7 +184,7 @@ function AdminUsers() {
         querySnapshot.forEach((doc) => {
           const userData = { id: doc.id, ...doc.data() };
           // Filter out specific admin user
-          if (userData.email !== 'mrjaaduji@gmail.com') {
+          if (userData.email !== appConfig.superAdminEmail) {
             usersData.push(userData);
           }
         });
@@ -211,7 +208,7 @@ function AdminUsers() {
       snapshot.forEach((doc) => {
         const userData = { id: doc.id, ...doc.data() };
         // Filter out specific admin user
-        if (userData.email !== 'mrjaaduji@gmail.com') {
+        if (userData.email !== appConfig.superAdminEmail) {
           usersData.push(userData);
         }
       });
@@ -288,7 +285,7 @@ function AdminUsers() {
       for (const tId of testIds) {
         try {
           const tSnap = await getDoc(doc(db, 'tests', tId));
-          if (tSnap.exists()) testTitleMap[tId] = tSnap.data().title || tId;
+          if (tSnap.exists()) {testTitleMap[tId] = tSnap.data().title || tId;}
         } catch (_) {}
       }
       submissions = submissions.map(s => ({ ...s, _testTitle: testTitleMap[s.testId] || s.testId }));
@@ -337,9 +334,9 @@ function AdminUsers() {
 
   // Close on Escape key when details are open
   useEffect(() => {
-    if (!selectedUser) return;
+    if (!selectedUser) {return;}
     const onKey = (e) => {
-      if (e.key === 'Escape') closeUserDetails();
+      if (e.key === 'Escape') {closeUserDetails();}
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -364,11 +361,11 @@ function AdminUsers() {
     setCurrentPage(1);
   }, [searchQuery, filterRole, filterStatus]);
 
-  if (loading) return (
+  if (loading) {return (
     <div className="loading-tests">
       <Loading message="Loading users" subtext="Fetching user accounts and permissions" variant="inline" size="large" />
     </div>
-  );
+  );}
   
   if (error) {
     return (
@@ -478,7 +475,7 @@ function AdminUsers() {
                           title="View user details"
                           role="button"
                           tabIndex={0}
-                          onKeyDown={(e) => { if (e.key === 'Enter') viewUserDetails(user); }}
+                          onKeyDown={(e) => { if (e.key === 'Enter') {viewUserDetails(user);} }}
                         >
                           {user.name || 'N/A'}
                         </span>
@@ -486,7 +483,7 @@ function AdminUsers() {
                       </div>
                     </td>
                     <td>
-                      {user.email?.toLowerCase() === 'mrjaaduji@gmail.com' ? (
+                      {user.email?.toLowerCase() === appConfig.superAdminEmail.toLowerCase() ? (
                         'Hidden'
                       ) : (
                         <span
@@ -495,7 +492,7 @@ function AdminUsers() {
                           role="button"
                           tabIndex={0}
                           title="View user details"
-                          onKeyDown={(e) => { if (e.key === 'Enter') viewUserDetails(user); }}
+                          onKeyDown={(e) => { if (e.key === 'Enter') {viewUserDetails(user);} }}
                         >
                           {user.email}
                         </span>
@@ -570,7 +567,7 @@ function AdminUsers() {
           className="user-details-overlay"
           role="dialog"
           aria-modal="true"
-          onClick={(e) => { if (e.target === e.currentTarget) closeUserDetails(); }}
+          onClick={(e) => { if (e.target === e.currentTarget) {closeUserDetails();} }}
         >
           <div className="user-details-panel">
             <div className="user-details-header">
@@ -838,7 +835,7 @@ function AdminTests() {
           // Try to get better name from user database
           try {
             // Try to get user by Firebase UID
-            let userDoc = await getDoc(doc(db, 'user', submissionData.candidateId));
+            const userDoc = await getDoc(doc(db, 'user', submissionData.candidateId));
             
             if (userDoc.exists()) {
               const userData = userDoc.data();
@@ -900,7 +897,7 @@ function AdminTests() {
       `• This action cannot be undone!`
     );
 
-    if (!confirmDelete) return;
+    if (!confirmDelete) {return;}
 
     try {
       setLoading(true);
@@ -947,18 +944,12 @@ function AdminTests() {
     return matchesSearch && matchesDomain && matchesStatus;
   });
 
-  const formatDateTime = (timestamp) => {
-    if (!timestamp) return 'N/A';
-    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-    return date.toLocaleString();
-  };
-
-  if (loading) return (
+  if (loading) {return (
     <div className="loading-tests">
       <Loading message="Loading tests" subtext="Fetching all tests and submissions" variant="inline" size="large" />
     </div>
-  );
-  if (error) return <div className="error">Error: {error}</div>;
+  );}
+  if (error) {return <div className="error">Error: {error}</div>;}
 
   if (selectedTest && !showSubmissions) {
     return <TestPaperView test={selectedTest} onBack={() => setSelectedTest(null)} />;
@@ -1135,11 +1126,11 @@ function TestPaperView({ test, onBack }) {
     loadQuestions();
   }, [test.id]);
 
-  if (loading) return (
+  if (loading) {return (
     <div className="loading-tests">
       <Loading message="Loading test paper" subtext="Fetching questions and test structure" variant="inline" size="large" />
     </div>
-  );
+  );}
 
   return (
     <div className="test-paper-view">
@@ -1266,18 +1257,12 @@ function TestSubmissionsView({ test, submissions, onBack }) {
   }, [submissions]);
 
   const canDeleteSubmissions = (currentUser?.role === 'admin') || (currentUser?.role === 'head') ||
-    (currentUser?.email?.toLowerCase?.() === 'mrjaaduji@gmail.com');
+    (currentUser?.email?.toLowerCase?.() === appConfig.superAdminEmail.toLowerCase());
 
   const filteredSubmissions = localSubmissions.filter(submission =>
     submission.candidateId?.toLowerCase().includes(searchQuery.toLowerCase()) ||
     submission.candidateName?.toLowerCase().includes(searchQuery.toLowerCase())
   );
-
-  const formatDateTime = (timestamp) => {
-    if (!timestamp) return 'N/A';
-    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-    return date.toLocaleString();
-  };
 
   const handleDeleteSubmission = async (submission) => {
     if (!canDeleteSubmissions) {
@@ -1292,7 +1277,7 @@ function TestSubmissionsView({ test, submissions, onBack }) {
       `• All paste/tab switch logs for this test\n\n` +
       `This action cannot be undone. Continue?`
     );
-    if (!confirmDelete) return;
+    if (!confirmDelete) {return;}
 
     try {
       console.log('Deleting submission and related data for:', submission.candidateId, 'test:', test.id);
@@ -1503,7 +1488,7 @@ function SubmissionDetailView({ submission, test, onBack }) {
   const [marksDistribution, setMarksDistribution] = useState({});
   const [totalMarks, setTotalMarks] = useState(0);
   const [saving, setSaving] = useState(false);
-  const [showMarksPanel, setShowMarksPanel] = useState(true);
+  // const [showMarksPanel] = useState(true); // Commented out as not currently used
 
   useEffect(() => {
     const loadSubmissionDetails = async () => {
@@ -1572,12 +1557,6 @@ function SubmissionDetailView({ submission, test, onBack }) {
     loadSubmissionDetails();
   }, [submission, test.id]);
 
-  const formatDateTime = (timestamp) => {
-    if (!timestamp) return 'N/A';
-    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-    return date.toLocaleString();
-  };
-
   const handleMarksChange = (questionId, marks) => {
     const numericMarks = Math.max(0, parseFloat(marks) || 0);
     const maxMarks = questions.find(q => q.id === questionId)?.marks || 1;
@@ -1616,7 +1595,6 @@ function SubmissionDetailView({ submission, test, onBack }) {
       });
 
       alert('Marks saved successfully!');
-      setShowMarksPanel(false);
     } catch (error) {
       console.error('Error saving marks:', error);
       alert('Failed to save marks. Please try again.');
@@ -1898,7 +1876,7 @@ function AdminMonitoring() {
             // Try to get better name from user database
             try {
               // Try to get user by Firebase UID
-              let userDoc = await getDoc(doc(db, 'user', participantData.candidateId));
+              const userDoc = await getDoc(doc(db, 'user', participantData.candidateId));
               
               if (userDoc.exists()) {
                 const userData = userDoc.data();
@@ -2057,12 +2035,12 @@ function AdminMonitoring() {
     };
   };
 
-  if (loading) return (
+  if (loading) {return (
     <div className="loading-tests">
       <Loading message="Loading monitoring data" subtext="Analyzing test activities and security logs" variant="inline" size="large" />
     </div>
-  );
-  if (error) return <div className="error">Error: {error}</div>;
+  );}
+  if (error) {return <div className="error">Error: {error}</div>;}
 
   // Participant Detail View
   if (selectedParticipant) {
@@ -2219,7 +2197,7 @@ function AdminMonitoring() {
 
 // Helper function to get question name from ID
 function getQuestionName(questionId, testData = null, storedQuestionText = null) {
-  if (!questionId) return 'Unknown Question';
+  if (!questionId) {return 'Unknown Question';}
   
   // If we have stored question text from monitoring data, use it directly
   if (storedQuestionText && storedQuestionText !== 'Question text not available') {
@@ -2414,7 +2392,7 @@ function ParticipantDetailView({ participant, test, monitoringData, onBack }) {
   // Load complete test data with questions
   useEffect(() => {
     const loadTestQuestions = async () => {
-      if (!test?.id) return;
+      if (!test?.id) {return;}
       
       try {
         console.log('🔍 Loading test questions for:', test.id);
@@ -2450,15 +2428,6 @@ function ParticipantDetailView({ participant, test, monitoringData, onBack }) {
     loadTestQuestions();
   }, [test]);
 
-  const formatDateTime = (timestamp) => {
-    if (!timestamp) return 'N/A';
-    // Handle both Firestore timestamp and regular timestamp
-    const date = timestamp.toDate ? timestamp.toDate() : 
-                 timestamp.seconds ? new Date(timestamp.seconds * 1000) :
-                 new Date(timestamp);
-    return date.toLocaleString();
-  };
-
   // Process monitoring data by type
   const tabSwitches = monitoringData.filter(event => 
     event.type === 'tab_switch' || event.type === 'visibility_change' || event.type === 'focus_lost'
@@ -2469,7 +2438,7 @@ function ParticipantDetailView({ participant, test, monitoringData, onBack }) {
   // Additional monitoring events
   const keyboardEvents = monitoringData.filter(event => event.type === 'keyboard_shortcut');
   const rightClickEvents = monitoringData.filter(event => event.type === 'right_click');
-  const fullscreenEvents = monitoringData.filter(event => event.type === 'fullscreen_exit');
+  // const fullscreenEvents = monitoringData.filter(event => event.type === 'fullscreen_exit');
 
   return (
     <div className="participant-detail-view">
@@ -2717,7 +2686,7 @@ function ParticipantDetailView({ participant, test, monitoringData, onBack }) {
 function AdminDashboard() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('overview');
-  const { user, userDoc, loading: contextLoading } = useFirebase();
+  const { loading: contextLoading } = useFirebase();
 
   const tabs = useMemo(() => [
     { label: 'Overview', value: 'overview' },

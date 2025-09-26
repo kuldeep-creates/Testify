@@ -1,16 +1,22 @@
-import * as XLSX from 'xlsx';
 import { doc, getDoc, collection, getDocs } from 'firebase/firestore';
+import ExcelJS from 'exceljs';
+
 import { db } from '../firebase';
+
+import Logger from './logger';
+import { showSuccess, showError } from './notifications';
 
 /**
  * Export test submissions to Excel format
  * @param {Object} params - Export parameters
+{{ ... }}
  * @param {Array} params.submissions - Array of submission objects
  * @param {Object} params.selectedTest - Test object with details
  * @param {Function} params.setLoading - Loading state setter
  * @returns {Promise<void>}
  */
 export const exportSubmissionsToExcel = async ({ submissions, selectedTest, setLoading }) => {
+  let fileName = '';
   try {
     setLoading(true);
     
@@ -18,7 +24,7 @@ export const exportSubmissionsToExcel = async ({ submissions, selectedTest, setL
     let testQuestions = [];
     try {
       // 1) Prefer the questions subcollection (source of truth used elsewhere in app)
-      console.log('ExcelExport: Fetching questions from subcollection tests/{id}/questions');
+      Logger.debug('Fetching questions from subcollection');
       const questionsSnapshot = await getDocs(collection(db, 'tests', selectedTest.id, 'questions'));
       if (!questionsSnapshot.empty) {
         testQuestions = questionsSnapshot.docs.map(qDoc => {
@@ -28,51 +34,50 @@ export const exportSubmissionsToExcel = async ({ submissions, selectedTest, setL
             ...data,
           };
         });
-        console.log('ExcelExport: Loaded questions from subcollection:', testQuestions);
+        Logger.debug('Loaded questions from subcollection', { count: testQuestions.length });
       }
 
       // 2) Fallback to embedded questions array on tests doc
       if (testQuestions.length === 0) {
-        console.log('ExcelExport: Subcollection empty, trying embedded questions on tests doc');
+        Logger.debug('Subcollection empty, trying embedded questions');
         const testDoc = await getDoc(doc(db, 'tests', selectedTest.id));
         if (testDoc.exists()) {
           const testData = testDoc.data();
           testQuestions = testData.questions || [];
-          console.log('ExcelExport: Loaded embedded questions from tests doc:', testQuestions);
+          Logger.debug('Loaded embedded questions from tests doc', { count: testQuestions.length });
         }
       }
 
       // 3) Alternate collection name (legacy)
       if (testQuestions.length === 0) {
-        console.log('ExcelExport: Trying legacy collection "test"');
+        Logger.debug('Trying legacy collection');
         const altTestDoc = await getDoc(doc(db, 'test', selectedTest.id));
         if (altTestDoc.exists()) {
           const altTestData = altTestDoc.data();
           testQuestions = altTestData.questions || [];
-          console.log('ExcelExport: Loaded questions from legacy collection:', testQuestions);
+          Logger.debug('Loaded questions from legacy collection', { count: testQuestions.length });
         }
       }
 
       // 4) Fallback to selectedTest object (runtime state)
       if (testQuestions.length === 0 && selectedTest.questions) {
         testQuestions = selectedTest.questions;
-        console.log('ExcelExport: Loaded questions from selectedTest prop:', testQuestions);
+        Logger.debug('Loaded questions from selectedTest prop', { count: testQuestions.length });
       }
     } catch (error) {
-      console.error('ExcelExport: Error fetching test questions:', error);
+      Logger.error('Error fetching test questions', null, error);
     }
 
-    // Debug: Log the submissions data structure
-    console.log('=== EXCEL EXPORT DEBUG ===');
-    console.log('Number of submissions:', submissions.length);
-    console.log('First submission structure:', submissions[0]);
-    console.log('Test questions:', testQuestions);
+    Logger.debug('Excel export data structure', {
+      submissionCount: submissions.length,
+      hasFirstSubmission: !!submissions[0],
+      questionCount: testQuestions.length
+    });
 
     // Fetch detailed user information and answers for each submission
     const enrichedSubmissions = await Promise.all(
       submissions.map(async (submission, submissionIndex) => {
-        console.log(`\n--- Processing submission ${submissionIndex + 1} ---`);
-        console.log('Submission data:', submission);
+        Logger.debug(`Processing submission ${submissionIndex + 1}`, { submissionId: submission.id });
         
         let userInfo = {
           fullName: submission.candidateName || 'Unknown',
@@ -94,7 +99,7 @@ export const exportSubmissionsToExcel = async ({ submissions, selectedTest, setL
               };
             }
           } catch (error) {
-            console.error('Error fetching user data for export:', error);
+            Logger.error('Error fetching user data for export', { candidateId: submission.candidateId }, error);
           }
         }
 
@@ -107,16 +112,11 @@ export const exportSubmissionsToExcel = async ({ submissions, selectedTest, setL
         };
 
         // Add question answers with actual question text as headers
-        console.log('Checking answers for submission:', submission.id || submissionIndex);
-        console.log('submission.answers exists?', !!submission.answers);
-        console.log('submission.answers:', submission.answers);
-        
-        // Also check other possible answer fields
-        console.log('Other possible fields:');
-        console.log('- submission.responses:', submission.responses);
-        console.log('- submission.userAnswers:', submission.userAnswers);
-        console.log('- submission.candidateAnswers:', submission.candidateAnswers);
-        console.log('- submission.testAnswers:', submission.testAnswers);
+        Logger.debug('Processing submission answers', {
+          submissionId: submission.id || submissionIndex,
+          hasAnswers: !!submission.answers,
+          answerKeys: submission.answers ? Object.keys(submission.answers) : []
+        });
         
         if (submission.answers && typeof submission.answers === 'object') {
           // Get all answer keys that are not metadata
@@ -125,7 +125,7 @@ export const exportSubmissionsToExcel = async ({ submissions, selectedTest, setL
             !key.includes('timestamp') && 
             !key.includes('metadata')
           );
-          console.log('Filtered answer keys:', answerKeys);
+          Logger.debug('Filtered answer keys', { keys: answerKeys });
           
           // If we have test questions, use them. Otherwise, use answer keys directly
           if (testQuestions.length > 0) {
@@ -155,8 +155,10 @@ export const exportSubmissionsToExcel = async ({ submissions, selectedTest, setL
               return testQuestions.indexOf(a) - testQuestions.indexOf(b);
             });
             
-            console.log('Excel: Original questions order:', testQuestions.map(q => ({ id: q.id, text: q.questionText?.substring(0, 30) })));
-            console.log('Excel: Sorted questions order:', sortedQuestions.map(q => ({ id: q.id, text: q.questionText?.substring(0, 30) })));
+            Logger.debug('Question ordering for Excel', {
+              originalCount: testQuestions.length,
+              sortedCount: sortedQuestions.length
+            });
             
             // Get all question IDs from the test (in sorted order) and try to find answers for them
             sortedQuestions.forEach((question, index) => {
@@ -210,17 +212,17 @@ export const exportSubmissionsToExcel = async ({ submissions, selectedTest, setL
               const finalAnswer = answer ? (typeof answer === 'string' ? answer : JSON.stringify(answer)) : '-';
               rowData[columnHeader] = finalAnswer;
               
-              console.log(`Question ${index + 1}: "${questionText}" -> Answer: "${finalAnswer}"`);
+              Logger.debug(`Question ${index + 1} processed`, { hasAnswer: !!answer });
             });
           } else {
             // No test questions found; create neutral headers without dummy text
-            console.warn('ExcelExport: No test questions found; using neutral headers');
+            Logger.warn('No test questions found, using neutral headers');
             answerKeys.forEach((answerKey, index) => {
               const answer = submission.answers[answerKey];
               const columnHeader = `Question ${index + 1}`;
               const finalAnswer = answer ? (typeof answer === 'string' ? answer : JSON.stringify(answer)) : '-';
               rowData[columnHeader] = finalAnswer;
-              console.log(`${columnHeader} (Key: ${answerKey}) -> Answer: "${finalAnswer}"`);
+              Logger.debug(`Column processed: ${columnHeader}`, { hasAnswer: !!answer });
             });
           }
         } else {
@@ -239,45 +241,67 @@ export const exportSubmissionsToExcel = async ({ submissions, selectedTest, setL
         rowData['Percentage'] = `${submission.score || 0}%`;
         rowData['Submitted At'] = submission.submittedAt?.toDate?.()?.toLocaleDateString() || 'N/A';
 
-        console.log('Final row data:', rowData);
-        console.log('Row data keys:', Object.keys(rowData));
-        
+        Logger.debug('Row data processed', { columnCount: Object.keys(rowData).length });
         return rowData;
       })
     );
 
-    // Create workbook and worksheet
-    const wb = XLSX.utils.book_new();
-    const ws = XLSX.utils.json_to_sheet(enrichedSubmissions);
+    // Create workbook and worksheet using ExcelJS
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Test Results');
 
-    // Get all column headers to set appropriate widths
+    // Get all column headers
     const headers = enrichedSubmissions.length > 0 ? Object.keys(enrichedSubmissions[0]) : [];
-    const colWidths = headers.map(header => {
-      if (header === 'Student Name') return { wch: 25 };
-      if (header === 'Mobile Number') return { wch: 15 };
-      if (header === 'Gmail ID') return { wch: 30 };
-      if (header === 'Year') return { wch: 8 };
-      if (header === 'Score Obtained') return { wch: 12 };
-      if (header === 'Total Marks') return { wch: 12 };
-      if (header === 'Percentage') return { wch: 12 };
-      if (header === 'Submitted At') return { wch: 15 };
-      // For question columns, use extra wide width for full-length answers
-      return { wch: 60 };
+    
+    // Add headers to worksheet
+    worksheet.addRow(headers);
+    
+    // Add data rows
+    enrichedSubmissions.forEach(submission => {
+      const row = headers.map(header => submission[header] || '');
+      worksheet.addRow(row);
     });
     
-    ws['!cols'] = colWidths;
-
-    XLSX.utils.book_append_sheet(wb, ws, 'Test Results');
+    // Set column widths
+    headers.forEach((header, index) => {
+      const column = worksheet.getColumn(index + 1);
+      if (header === 'Student Name') { column.width = 25; }
+      else if (header === 'Mobile Number') { column.width = 15; }
+      else if (header === 'Gmail ID') { column.width = 30; }
+      else if (header === 'Year') { column.width = 8; }
+      else if (header === 'Score Obtained') { column.width = 12; }
+      else if (header === 'Total Marks') { column.width = 12; }
+      else if (header === 'Percentage') { column.width = 12; }
+      else if (header === 'Submitted At') { column.width = 15; }
+      else { column.width = 60; } // For question columns
+    });
+    
+    // Style the header row
+    const headerRow = worksheet.getRow(1);
+    headerRow.font = { bold: true };
+    headerRow.fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FFE0E0E0' }
+    };
 
     // Generate filename with test title and date
-    const fileName = `${selectedTest.title.replace(/[^a-zA-Z0-9]/g, '_')}_Results_${new Date().toISOString().split('T')[0]}.xlsx`;
+    fileName = `${selectedTest.title.replace(/[^a-zA-Z0-9]/g, '_')}_Results_${new Date().toISOString().split('T')[0]}.xlsx`;
     
-    XLSX.writeFile(wb, fileName);
+    // Write file
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName;
+    link.click();
+    window.URL.revokeObjectURL(url);
     
-    alert('Excel file exported successfully!');
+    showSuccess('Excel file exported successfully!');
   } catch (error) {
-    console.error('Error exporting to Excel:', error);
-    alert('Failed to export Excel file. Please try again.');
+    Logger.error('Error exporting to Excel', { fileName }, error);
+    showError('Failed to export Excel file. Please try again.', error);
   } finally {
     setLoading(false);
   }

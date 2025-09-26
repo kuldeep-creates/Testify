@@ -1,13 +1,15 @@
+import { signOut } from 'firebase/auth';
+import { collection, getDocs, query, where, getDoc, doc } from 'firebase/firestore';
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { signOut } from 'firebase/auth';
-import { auth, db } from '../../../firebase';
-import { collection, getDocs, query, where, getDoc, doc } from 'firebase/firestore';
+
 import { useFirebase } from '../../../context/FirebaseContext';
-import Loading from '../../Loading/Loading';
-import Leaderboard from '../../Leaderboard/Leaderboard';
+import { auth, db } from '../../../firebase';
+import { formatDate } from '../../../utils/dateUtils';
 import BlockedSubmissionCard from '../../BlockedSubmissionCard/BlockedSubmissionCard';
 import Icon from '../../icons/Icon';
+import Leaderboard from '../../Leaderboard/Leaderboard';
+import Loading from '../../Loading/Loading';
 import './UserDashboard.css';
 
 // Candidate Tests Component
@@ -94,7 +96,7 @@ function CandidateTests() {
 
   // Function to check submissions before starting test
   const checkSubmissionsAndStart = async (test) => {
-    if (!user) return;
+    if (!user) {return;}
 
     setCheckingSubmissions(true);
     try {
@@ -160,12 +162,12 @@ function CandidateTests() {
     );
   });
 
-  if (loading) return (
+  if (loading) {return (
     <div className="loading-tests">
       <Loading message="Loading tests" subtext="Fetching available tests for you" variant="inline" size="large" />
     </div>
-  );
-  if (error) return <div className="error">Error: {error}</div>;
+  );}
+  if (error) {return <div className="error">Error: {error}</div>;}
 
   return (
     <div className="candidate-tests">
@@ -205,7 +207,7 @@ function CandidateTests() {
               </div>
               <div className="meta-item">
                 <span className="meta-icon">📅</span>
-                <span>Created: {test.createdAt?.toDate?.()?.toLocaleDateString() || 'Unknown'}</span>
+                <span>Created: {formatDate(test.createdAt)}</span>
               </div>
             </div>
             
@@ -287,7 +289,7 @@ function CandidateResults() {
 
   useEffect(() => {
     const loadResults = async () => {
-      if (!user?.uid) return;
+      if (!user?.uid) {return;}
       
       setLoading(true);
       setError('');
@@ -360,12 +362,12 @@ function CandidateResults() {
     loadResults();
   }, [user?.uid]);
 
-  if (loading) return (
+  if (loading) {return (
     <div className="loading-results">
       <Loading message="Loading your results" subtext="Analyzing your test performance and scores" variant="inline" size="large" />
     </div>
-  );
-  if (error) return <div className="error">Error: {error}</div>;
+  );}
+  if (error) {return <div className="error">Error: {error}</div>;}
 
   return (
     <div className="candidate-results">
@@ -435,7 +437,7 @@ function CandidateResults() {
               {result.submittedAt && (
                 <div className="submission-info">
                   <span className="submission-date">
-                    Submitted: {result.submittedAt.toDate?.()?.toLocaleDateString() || 'Unknown'}
+                    Submitted: {formatDate(result.submittedAt)}
                   </span>
                 </div>
               )}
@@ -447,15 +449,6 @@ function CandidateResults() {
   );
 }
 
-// Placeholder for future candidate features
-// function CandidateProfile() {
-//   return (
-//     <div className="candidate-profile">
-//       <h2>Profile Settings</h2>
-//       <p>Profile management will be available soon.</p>
-//     </div>
-//   );
-// }
 
 function UserDashboard() {
   const navigate = useNavigate();

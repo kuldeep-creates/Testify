@@ -1,15 +1,17 @@
+import { signOut } from 'firebase/auth';
+import { collection, getDocs, query, where, doc, setDoc, serverTimestamp, addDoc, updateDoc, deleteDoc, getDoc } from 'firebase/firestore';
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { signOut } from 'firebase/auth';
-import { auth, db } from '../../../firebase';
-import { collection, getDocs, query, where, doc, setDoc, serverTimestamp, addDoc, updateDoc, deleteDoc, getDoc, onSnapshot } from 'firebase/firestore';
-import { fetchTestWithQuestions } from '../../../services/firestore';
+
 import { useFirebase } from '../../../context/FirebaseContext';
-import Loading from '../../Loading/Loading';
-import Icon from '../../icons/Icon';
-import Leaderboard from '../../Leaderboard/Leaderboard';
+import { auth, db } from '../../../firebase';
+import { fetchTestWithQuestions } from '../../../services/firestore';
+import { formatDateTime } from '../../../utils/dateUtils';
 import { exportSubmissionsToExcel } from '../../../utils/excelExport';
 import { exportSubmissionsToPDF } from '../../../utils/pdfExport';
+import Icon from '../../icons/Icon';
+import Leaderboard from '../../Leaderboard/Leaderboard';
+import Loading from '../../Loading/Loading';
 import './HeadDashboard.css';
 
 // Helper function to format duration
@@ -25,7 +27,7 @@ const formatDuration = (hours, minutes) => {
 
 // Helper function to parse duration string into hours and minutes
 const parseDuration = (durationString) => {
-  if (!durationString) return { hours: 0, minutes: 30 };
+  if (!durationString) {return { hours: 0, minutes: 30 };}
   
   // Handle formats like "30 min", "1h", "1h 30min", "90 min"
   const minMatch = durationString.match(/(\d+)\s*min/);
@@ -1225,20 +1227,6 @@ function HeadResults() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [exporting, setExporting] = useState(false);
-  const [editingTest, setEditingTest] = useState(null);
-  const [editStep, setEditStep] = useState(1);
-  const [editTestData, setEditTestData] = useState({
-    title: '',
-    description: '',
-    duration: '30 min',
-    durationHours: 0,
-    durationMinutes: 30,
-    password: '',
-    allowMultipleSubmissions: false
-  });
-  const [editQuestions, setEditQuestions] = useState([]);
-  const [editQIndex, setEditQIndex] = useState(0);
-  const [editLoading, setEditLoading] = useState(false);
   const { userDoc } = useFirebase();
 
   useEffect(() => {
@@ -1436,82 +1424,69 @@ function HeadResults() {
     }
   };
 
-  // Test Management Functions
-  const toggleTestStatus = async (testId, currentStatus) => {
-    try {
-      const newStatus = currentStatus === 'active' ? 'closed' : 'active';
-      await updateDoc(doc(db, 'tests', testId), { status: newStatus });
-      setTests(tests.map(t => t.id === testId ? { ...t, status: newStatus } : t));
-      alert(`Test ${newStatus === 'active' ? 'activated' : 'closed'} successfully!`);
-    } catch (e) {
-      console.log('[Head:toggleStatus:error]', e.code, e.message);
-      setError('Failed to update test status');
-    }
-  };
+  // const deleteTest = async (testId, testTitle) => {
+  //   const confirmDelete = window.confirm(
+  //     `Are you sure you want to delete "${testTitle}"?\n\n` +
+  //     `This action cannot be undone and will permanently remove:\n` +
+  //     `• The test and all its questions\n` +
+  //     `• All student submissions\n` +
+  //     `• All related data\n\n` +
+  //     `This action is irreversible!`
+  //   );
+  //   
+  //   if (!confirmDelete) {return;}
+  //   
+  //   try {
+  //     // Delete test document
+  //     await deleteDoc(doc(db, 'tests', testId));
+  //     
+  //     // Delete all submissions for this test
+  //     const resultsQuery = query(collection(db, 'results'), where('testId', '==', testId));
+  //     const resultsSnap = await getDocs(resultsQuery);
+  //     const deletePromises = resultsSnap.docs.map(doc => deleteDoc(doc.ref));
+  //     await Promise.all(deletePromises);
+  //     
+  //     // Update local state
+  //     setTests(tests.filter(t => t.id !== testId));
+  //     if (selectedTest?.id === testId) {
+  //       setSelectedTest(null);
+  //       setSubmissions([]);
+  //     }
+  //     
+  //     alert(`Test "${testTitle}" and all related data deleted successfully!`);
+  //   } catch (e) {
+  //     console.log('[Head:deleteTest:error]', e.code, e.message);
+  //     setError('Failed to delete test');
+  //     alert('Failed to delete test. Please try again.');
+  //   }
+  // };
 
-  const deleteTest = async (testId, testTitle) => {
-    const confirmDelete = window.confirm(
-      `Are you sure you want to delete "${testTitle}"?\n\n` +
-      `This action cannot be undone and will permanently remove:\n` +
-      `• The test and all its questions\n` +
-      `• All student submissions\n` +
-      `• All related data\n\n` +
-      `This action is irreversible!`
-    );
-    
-    if (!confirmDelete) return;
-    
-    try {
-      // Delete test document
-      await deleteDoc(doc(db, 'tests', testId));
-      
-      // Delete all submissions for this test
-      const resultsQuery = query(collection(db, 'results'), where('testId', '==', testId));
-      const resultsSnap = await getDocs(resultsQuery);
-      const deletePromises = resultsSnap.docs.map(doc => deleteDoc(doc.ref));
-      await Promise.all(deletePromises);
-      
-      // Update local state
-      setTests(tests.filter(t => t.id !== testId));
-      if (selectedTest?.id === testId) {
-        setSelectedTest(null);
-        setSubmissions([]);
-      }
-      
-      alert(`Test "${testTitle}" and all related data deleted successfully!`);
-    } catch (e) {
-      console.log('[Head:deleteTest:error]', e.code, e.message);
-      setError('Failed to delete test');
-      alert('Failed to delete test. Please try again.');
-    }
-  };
-
-  const handleEditTest = (test) => {
-    // Parse duration for editing
-    const parseDuration = (duration) => {
-      const match = duration.match(/(\d+)h?\s*(\d+)?m?/);
-      if (match) {
-        const hours = parseInt(match[1]) || 0;
-        const minutes = parseInt(match[2]) || 0;
-        return { hours, minutes };
-      }
-      return { hours: 0, minutes: 30 };
-    };
-    
-    const { hours, minutes } = parseDuration(test.duration || '30min');
-    
-    setEditTestData({
-      title: test.title || '',
-      description: test.description || '',
-      duration: test.duration || '30min',
-      durationHours: hours,
-      durationMinutes: minutes,
-      password: test.password || '',
-      allowMultipleSubmissions: test.allowMultipleSubmissions || false
-    });
-    setEditingTest(test);
-    setEditStep(1);
-  };
+  // const handleEditTest = (test) => {
+  //   // Parse duration for editing
+  //   const parseDuration = (duration) => {
+  //     const match = duration.match(/(\d+)h?\s*(\d+)?m?/);
+  //     if (match) {
+  //       const hours = parseInt(match[1]) || 0;
+  //       const minutes = parseInt(match[2]) || 0;
+  //       return { hours, minutes };
+  //     }
+  //     return { hours: 0, minutes: 30 };
+  //   };
+  //   
+  //   const { hours, minutes } = parseDuration(test.duration || '30min');
+  //   
+  //   setEditTestData({
+  //     title: test.title || '',
+  //     description: test.description || '',
+  //     duration: test.duration || '30min',
+  //     durationHours: hours,
+  //     durationMinutes: minutes,
+  //     password: test.password || '',
+  //     allowMultipleSubmissions: test.allowMultipleSubmissions || false
+  //   });
+  //   setEditingTest(test);
+  //   setEditStep(1);
+  // };
 
   // If viewing individual submission
   if (selectedSubmission) {
@@ -1824,12 +1799,6 @@ function HeadSubmissionDetailView({ submission, test, onBack }) {
     loadSubmissionDetails();
   }, [submission, test.id]);
 
-  const formatDateTime = (timestamp) => {
-    if (!timestamp) return 'N/A';
-    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-    return date.toLocaleString();
-  };
-
   const handleMarksChange = (questionId, marks) => {
     const numericMarks = Math.max(0, parseFloat(marks) || 0);
     const maxMarks = questions.find(q => q.id === questionId)?.marks || 1;
@@ -2084,7 +2053,8 @@ function HeadSubmissionDetailView({ submission, test, onBack }) {
 function HeadDashboard() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('create');
-  const { user, userDoc, loading: contextLoading } = useFirebase();
+  const { loading: contextLoading } = useFirebase();
+  // const { userDoc } = useFirebase(); // userDoc not currently used in main component
 
   const tabs = useMemo(() => [
     { label: 'Create Test', value: 'create' },

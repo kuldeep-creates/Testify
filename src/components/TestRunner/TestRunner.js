@@ -1,11 +1,14 @@
+import { addDoc, collection, serverTimestamp, doc, getDoc, query, where, getDocs, updateDoc } from 'firebase/firestore';
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { fetchTestWithQuestions, logPaste, logTabSwitch } from '../../services/firestore';
+
 import { useFirebase } from '../../context/FirebaseContext';
-import { addDoc, collection, serverTimestamp, doc, getDoc, query, where, getDocs, updateDoc } from 'firebase/firestore';
 import { db } from '../../firebase';
-import Loading from '../Loading/Loading';
+import { fetchTestWithQuestions } from '../../services/firestore';
+import Logger from '../../utils/logger';
+import { showSuccess, showError, showInfo, confirmAction } from '../../utils/notifications';
 import BlockedSubmissionCard from '../BlockedSubmissionCard/BlockedSubmissionCard';
+import Loading from '../Loading/Loading';
 import './TestRunner.css';
 
 // Network monitoring function
@@ -23,7 +26,7 @@ const monitorConnection = async () => {
 
 // Helper function to parse duration string into total minutes
 const parseDurationToMinutes = (durationString) => {
-  if (!durationString) return 30;
+  if (!durationString) {return 30;}
   
   // Handle formats like "30 min", "1h", "1h 30min", "90 min"
   const minMatch = durationString.match(/(\d+)\s*min/);
@@ -150,17 +153,14 @@ function TestRunner() {
   const [netStatus, setNetStatus] = useState('checking');
   const [showBlockedCard, setShowBlockedCard] = useState(false);
   const [blockMessage, setBlockMessage] = useState('');
-  const [isFullscreen, setIsFullscreen] = useState(false);
   const [selectedLanguage, setSelectedLanguage] = useState('javascript');
   
   // Ref to track if auto-submit has been triggered to prevent multiple submissions
   const autoSubmitTriggered = useRef(false);
 
-  // Removed automatic basic monitoring test to prevent unwanted monitoring events
-
   // Sort questions by marks in ascending order (lowest marks first)
   const sortedQuestions = useMemo(() => {
-    if (!testData?.questions) return [];
+    if (!testData?.questions) {return [];}
     return [...testData.questions].sort((a, b) => {
       const marksA = a.marks || a.marksPerQuestion || 1;
       const marksB = b.marks || b.marksPerQuestion || 1;
@@ -173,11 +173,11 @@ function TestRunner() {
   // Function to get candidate name from database
   const getCandidateName = useCallback(async () => {
     try {
-      console.log('Fetching candidate name for user:', user?.uid);
+      Logger.debug('Fetching candidate name', { userId: user?.uid });
       
       // First, try to get from userDoc (FirebaseContext)
       if (userDoc?.name && userDoc.name.trim()) {
-        console.log('Using name from userDoc:', userDoc.name);
+        Logger.debug('Using name from userDoc');
         return userDoc.name.trim();
       }
       
@@ -188,10 +188,10 @@ function TestRunner() {
         
         if (userSnapshot.exists()) {
           const userData = userSnapshot.data();
-          console.log('Fetched user data from database:', userData);
+          Logger.debug('Fetched user data from database');
           
           if (userData.name && userData.name.trim()) {
-            console.log('Using name from database:', userData.name);
+            Logger.debug('Using name from database');
             return userData.name.trim();
           }
         }
@@ -201,14 +201,14 @@ function TestRunner() {
       const email = userDoc?.email || user?.email;
       if (email && email.includes('@')) {
         const extractedName = email.split('@')[0];
-        console.log('Using extracted name from email:', extractedName);
+        Logger.debug('Using extracted name from email');
         return extractedName;
       }
       
-      console.log('No name found, using Unknown');
+      Logger.warn('No name found, using Unknown');
       return 'Unknown';
     } catch (error) {
-      console.error('Error fetching candidate name:', error);
+      Logger.error('Error fetching candidate name', null, error);
       // Fallback: extract from email
       const email = userDoc?.email || user?.email;
       if (email && email.includes('@')) {
@@ -220,10 +220,10 @@ function TestRunner() {
 
   // Submission logic
   const handleSubmit = useCallback(async (isAutoSubmit = false) => {
-    console.log('handleSubmit called', { isAutoSubmit, isSubmitting, user: user?.uid, testId });
+    Logger.info('Starting test submission', { isAutoSubmit, userId: user?.uid, testId });
     
     if (isSubmitting) {
-      console.log('Already submitting, returning');
+      Logger.warn('Submission already in progress');
       return;
     }
 
@@ -238,21 +238,22 @@ function TestRunner() {
         confirmMessage = 'Submit your test? This cannot be undone.';
       }
       
-      if (!window.confirm(confirmMessage)) {
-        console.log('User cancelled submission');
+      const confirmed = confirmAction(confirmMessage);
+      if (!confirmed) {
+        Logger.info('User cancelled submission');
         return;
       }
     }
     setIsSubmitting(true);
-    console.log('Starting submission process');
+    Logger.info('Starting submission process');
 
     try {
       if (!user?.uid) {
-        console.error('No user UID');
+        Logger.error('No user UID available');
         throw new Error('User not authenticated');
       }
       if (!testId) {
-        console.error('No test ID');
+        Logger.error('No test ID available');
         throw new Error('Missing test ID');
       }
 
@@ -267,25 +268,26 @@ function TestRunner() {
       );
       const existingSubmissions = await getDocs(existingSubmissionsQuery);
       
-      console.log('Existing submissions found:', existingSubmissions.size);
-      console.log('Multiple submissions allowed:', allowMultiple);
+      Logger.debug('Checking existing submissions', {
+        existingCount: existingSubmissions.size,
+        allowMultiple
+      });
       
-      // Debug: Log the test data before calculating total marks
-      console.log('Test data when submitting:', testData);
+      Logger.debug('Calculating total marks from test data');
       
       // Calculate total marks, ensuring we're looking at the correct property
       const questions = sortedQuestions || [];
       const totalMarks = questions.reduce((sum, q) => {
         const marks = q.marks || q.marksPerQuestion || 1; // Try different possible properties
-        console.log(`Question ${q.id} marks:`, marks);
+        Logger.debug(`Question ${q.id} marks: ${marks}`);
         return sum + Number(marks);
       }, 0);
       
-      console.log('Calculated total marks:', totalMarks);
+      Logger.debug('Calculated total marks', { totalMarks });
       
       // Get the candidate's registered name from database
       const candidateName = await getCandidateName();
-      console.log('Final candidate name for submission:', candidateName);
+      Logger.debug('Using candidate name for submission', { candidateName });
 
       const payload = {
         candidateId: user.uid,
@@ -303,8 +305,7 @@ function TestRunner() {
         totalMarks: totalMarks // Add total marks to the payload
       };
 
-      console.log('Submitting test with payload:', payload);
-      console.log('User answers:', userAnswers);
+      Logger.debug('Submitting test', { hasAnswers: !!userAnswers, answerCount: Object.keys(userAnswers).length });
 
       // Handle submission based on multiple submission setting
       // Enforce max 3 attempts when multiple submissions are allowed
@@ -319,9 +320,8 @@ function TestRunner() {
           previousSubmissionId: latestSubmission.id,
           updatedAt: new Date()
         });
-        console.log('Updated existing submission with ID:', latestSubmission.id);
-        // Show correct attempt number
-        alert(`Test re-submitted successfully! (Attempt #${existingSubmissions.size + 1})`);
+        Logger.info('Updated existing submission', { submissionId: latestSubmission.id });
+        showSuccess(`Test re-submitted successfully! (Attempt #${existingSubmissions.size + 1})`);
       } else if (existingSubmissions.size > 0 && !allowMultiple) {
         // Multiple submissions not allowed, show error
         throw new Error('You have already submitted this test. Multiple submissions are not allowed.');
@@ -331,36 +331,38 @@ function TestRunner() {
           ...payload,
           submissionNumber: 1
         });
-        console.log('Document written with ID:', docRef.id);
-        alert('Test submitted successfully!');
+        Logger.info('Test submitted successfully', { submissionId: docRef.id });
+        showSuccess('Test submitted successfully!');
       }
       
       navigate('/dashboard');
       
     } catch (err) {
-      console.error('Submission error:', err);
-      console.error('Error code:', err.code);
-      console.error('Error message:', err.message);
-      console.error('Error stack:', err.stack);
+      Logger.error('Test submission failed', {
+        code: err.code,
+        message: err.message
+      }, err);
       
       let msg = 'Could not submit test. ';
-      if (err.code === 'unavailable') msg += 'Check your internet connection.';
-      else if (err.code === 'permission-denied') msg += 'Permission denied. Check Firestore rules.';
-      else if (err.code === 'unauthenticated') msg += 'Please log in again.';
-      else if (err.code === 'failed-precondition') msg += 'Database configuration issue.';
-      else if (err.message?.includes('fetch')) msg += 'Network error. Check connection.';
-      else msg += `${err.message || 'Unknown error'}. Check console for details.`;
+      if (err.code === 'unavailable') {msg += 'Check your internet connection.';}
+      else if (err.code === 'permission-denied') {msg += 'Permission denied. Check Firestore rules.';}
+      else if (err.code === 'unauthenticated') {msg += 'Please log in again.';}
+      else if (err.code === 'failed-precondition') {msg += 'Database configuration issue.';}
+      else if (err.message?.includes('fetch')) {msg += 'Network error. Check connection.';}
+      else {msg += `${err.message || 'Unknown error'}.`;}
       
-      alert(msg);
+      showError(msg, err);
     } finally {
       setIsSubmitting(false);
-      console.log('Submission process completed');
+      Logger.info('Submission process completed');
     }
-  }, [isSubmitting, user, testId, userAnswers, testData, navigate, startTime, getCandidateName]);
+  }, [isSubmitting, user, testId, userAnswers, testData, navigate, startTime, getCandidateName, sortedQuestions]);
 
   // Auto-submit for violations
   const autoSubmit = useCallback(async (reason) => {
-    if (isSubmitting || autoSubmitTriggered.current || !user?.uid || !testId) return;
+    if (isSubmitting || autoSubmitTriggered.current || !user?.uid || !testId) {
+      return;
+    }
     
     autoSubmitTriggered.current = true;
     setIsSubmitting(true);
@@ -413,13 +415,13 @@ function TestRunner() {
       // Silently navigate back to dashboard after auto-submit
       navigate('/dashboard');
     } catch (error) {
-      console.error('Auto-submit error:', error);
+      Logger.error('Auto-submit error', null, error);
       // Still navigate to dashboard even if logging fails
       navigate('/dashboard');
     } finally {
       setIsSubmitting(false);
     }
-  }, [isSubmitting, user, testId, userAnswers, testData, tabSwitches, alerts, navigate, startTime, getCandidateName]);
+  }, [isSubmitting, user, testId, userAnswers, testData, tabSwitches, alerts, navigate, startTime, getCandidateName, sortedQuestions]);
 
   // Handle password verification
   const verifyPassword = async () => {
@@ -445,7 +447,7 @@ function TestRunner() {
           }
         });
       } catch (error) {
-        console.error('Error logging password verification:', error);
+        Logger.error('Error logging password verification', null, error);
       }
     } else {
       setPasswordError('Incorrect password. Please try again.');
@@ -465,7 +467,7 @@ function TestRunner() {
           }
         });
       } catch (error) {
-        console.error('Error logging password failure:', error);
+        Logger.error('Error logging password failure', null, error);
       }
     }
   };
@@ -482,7 +484,7 @@ function TestRunner() {
       const existingSubmissions = await getDocs(existingSubmissionsQuery);
       const submissionCount = existingSubmissions.size;
       
-      console.log('StartTest submission check:', {
+      Logger.debug('StartTest submission check', {
         submissionCount,
         allowMultiple,
         testId,
@@ -531,12 +533,12 @@ function TestRunner() {
             attemptNumber: submissionCount + 1
           }
         });
-        console.log('✅ Test session started successfully');
+        Logger.info('Test session started successfully');
       } catch (error) {
-        console.error('Error logging session start:', error);
+        Logger.error('Error logging session start', null, error);
       }
     } catch (error) {
-      console.error('Error starting test:', error);
+      Logger.error('Error starting test', null, error);
       setErrMsg('Error starting test. Please try again.');
     }
   };
@@ -556,19 +558,11 @@ function TestRunner() {
           return;
         }
         
-        // Debug: Log test data and questions
-        console.log('Test data:', test);
-        if (test.questions) {
-          console.log('Questions with marks:', test.questions.map(q => ({
-            id: q.id,
-            marks: q.marks,
-            questionText: q.questionText?.substring(0, 30) + '...',
-            question: q.question?.substring(0, 30) + '...',
-            text: q.text?.substring(0, 30) + '...'
-          })));
-        }
+        Logger.debug('Test data loaded', {
+          hasQuestions: !!test.questions,
+          questionCount: test.questions?.length || 0
+        });
         
-        // Set test data
         setTestData(test);
         
         // Check if password is required first
@@ -579,7 +573,7 @@ function TestRunner() {
           setShowInstructions(true);
         }
       } catch (error) {
-        console.error('Error fetching test data:', error);
+        Logger.error('Error fetching test data', null, error);
         setErrMsg('Error loading test. Please try again.');
       } finally {
         setIsLoading(false);
@@ -590,14 +584,14 @@ function TestRunner() {
 
   // Timer logic
   useEffect(() => {
-    if (secondsLeft <= 0 || !testData) return;
+    if (secondsLeft <= 0 || !testData) {return;}
     
     const interval = setInterval(() => {
       setSecondsLeft(prev => {
         if (prev <= 1) {
           // Auto-submit when time runs out
           if (!isSubmitting && !autoSubmitTriggered.current) {
-            console.log('Time up! Auto-submitting test...');
+            Logger.info('Time up! Auto-submitting test');
             autoSubmitTriggered.current = true;
             // Use setTimeout to avoid state update during render
             setTimeout(() => handleSubmit(true), 0);
@@ -628,14 +622,14 @@ function TestRunner() {
 
 
   useEffect(() => {
-    if (!testData || isSubmitting) return;
+    if (!testData || isSubmitting) {return;}
     
     // Single handler for tab switching detection
     const handleTabSwitchEvent = async (eventType) => {
-      console.log('🔍 TAB SWITCH: Event triggered', { eventType, user: user?.uid, testId });
+      Logger.debug('Tab switch event triggered', { eventType, userId: user?.uid, testId });
       
       if (!user || !testId) {
-        console.warn('🔍 TAB SWITCH: Missing user or testId');
+        Logger.warn('Tab switch: Missing user or testId');
         return;
       }
       
@@ -655,7 +649,7 @@ function TestRunner() {
           }
         });
         
-        console.log('✅ TAB SWITCH: Logged successfully');
+        Logger.debug('Tab switch logged successfully');
         
         // Update state and show warning
         setTabSwitches(prev => {
@@ -668,7 +662,7 @@ function TestRunner() {
           
           // Auto-submit after 3 violations
           if (newCount >= 3) {
-            console.log('🚫 TAB SWITCH: Auto-submitting due to violations');
+            Logger.warn('Auto-submitting due to tab switch violations');
             setTimeout(() => autoSubmit('excessive-tab-switching'), 1000);
           }
           
@@ -676,7 +670,7 @@ function TestRunner() {
         });
         
       } catch (error) {
-        console.error('❌ TAB SWITCH: Error logging:', error);
+        Logger.error('Error logging tab switch', null, error);
       }
     };
     
@@ -706,7 +700,7 @@ function TestRunner() {
 
   // Paste detection
   const handlePaste = useCallback(async (qid, text) => {
-    if (!user || !testId || !qid) return;
+    if (!user || !testId || !qid) {return;}
     try {
       // Get the current question text for better monitoring display
       const currentQuestion = sortedQuestions?.find(q => q.id === qid);
@@ -714,14 +708,14 @@ function TestRunner() {
       
       if (currentQuestion) {
         questionText = currentQuestion.questionText || currentQuestion.question || currentQuestion.text || 'Question text not available';
-        console.log('🔍 Found question for paste event:', { id: qid, text: questionText.substring(0, 50) + '...' });
+        Logger.debug('Found question for paste event', { questionId: qid });
       } else {
-        console.log('🔍 Question not found for paste event:', qid, 'Available questions:', sortedQuestions?.map(q => q.id));
+        Logger.warn('Question not found for paste event', { questionId: qid, availableQuestions: sortedQuestions?.map(q => q.id) });
         // Try to get question text from current question if qid doesn't match
         const currentQ = sortedQuestions?.[current];
         if (currentQ) {
           questionText = currentQ.questionText || currentQ.question || currentQ.text || 'Question text not available';
-          console.log('🔍 Using current question text instead:', questionText.substring(0, 50) + '...');
+          Logger.debug('Using current question text instead');
         }
       }
       
@@ -755,16 +749,16 @@ function TestRunner() {
       setAlerts(prev => [...prev, { msg: `Paste detected in question ${qid}.`, time: new Date() }]);
       setShowAlert(true);
     } catch (error) {
-      console.error('Error logging paste event:', error);
+      Logger.error('Error logging paste event', null, error);
     }
   }, [user, testId, sortedQuestions, current]);
 
   // Enhanced monitoring for suspicious activities
   const logMonitoringEvent = useCallback(async (type, description, severity = 'low', additionalData = {}) => {
-    console.log('🔍 MONITORING: Attempting to log event', { type, description, severity, user: user?.uid, testId });
+    Logger.debug('Attempting to log monitoring event', { type, description, severity, userId: user?.uid, testId });
     
     if (!user || !testId) {
-      console.warn('🔍 MONITORING: Missing user or testId', { user: user?.uid, testId });
+      Logger.warn('Monitoring: Missing user or testId', { userId: user?.uid, testId });
       return;
     }
     
@@ -775,9 +769,9 @@ function TestRunner() {
       
       if (currentQuestion) {
         questionText = currentQuestion.questionText || currentQuestion.question || currentQuestion.text;
-        console.log('🔍 Found question text for monitoring event:', questionText ? questionText.substring(0, 50) + '...' : 'No text found');
+        Logger.debug('Found question text for monitoring event', { hasText: !!questionText });
       } else {
-        console.log('🔍 No current question found for monitoring event');
+        Logger.debug('No current question found for monitoring event');
       }
       
       const eventData = {
@@ -799,10 +793,10 @@ function TestRunner() {
         }
       };
       
-      console.log('🔍 MONITORING: Event data to be logged:', eventData);
+      Logger.debug('Monitoring event data prepared', { type, severity });
       
       const docRef = await addDoc(collection(db, 'monitoring'), eventData);
-      console.log('✅ MONITORING: Successfully logged event with ID:', docRef.id);
+      Logger.debug('Monitoring event logged successfully', { eventId: docRef.id });
       
     } catch (error) {
       console.error(`❌ MONITORING: Error logging ${type} event:`, error);
@@ -816,16 +810,16 @@ function TestRunner() {
 
   // Copy detection
   const handleCopy = useCallback(async () => {
-    console.log('🔍 COPY: Copy event triggered');
+    Logger.debug('Copy event triggered');
     if (!user || !testId) {
-      console.warn('🔍 COPY: Missing user or testId', { user: user?.uid, testId });
+      Logger.warn('Copy event: Missing user or testId', { userId: user?.uid, testId });
       return;
     }
     try {
       const selection = window.getSelection().toString();
-      console.log('🔍 COPY: Selected text:', selection.slice(0, 100));
+      Logger.debug('Copy event: Text selected', { textLength: selection.length });
       if (selection.length > 0) {
-        console.log('🔍 COPY: Logging copy event...');
+        Logger.debug('Logging copy event');
         await logMonitoringEvent(
           'copy',
           `User copied text: "${selection.slice(0, 50)}${selection.length > 50 ? '...' : ''}"`,
@@ -841,18 +835,18 @@ function TestRunner() {
         );
         setAlerts(prev => [...prev, { msg: 'Copy action detected.', time: new Date() }]);
         setShowAlert(true);
-        console.log('✅ COPY: Copy event logged successfully');
+        Logger.debug('Copy event logged successfully');
       } else {
-        console.log('🔍 COPY: No text selected, skipping log');
+        Logger.debug('Copy event: No text selected, skipping log');
       }
     } catch (error) {
-      console.error('❌ COPY: Error handling copy event:', error);
+      Logger.error('Error handling copy event', null, error);
     }
   }, [user, testId, currentQuestion, logMonitoringEvent]);
 
   // Right-click detection
   const handleRightClick = useCallback(async (e) => {
-    if (!user || !testId) return;
+    if (!user || !testId) {return;}
     e.preventDefault(); // Prevent context menu
     try {
       await logMonitoringEvent(
@@ -871,13 +865,13 @@ function TestRunner() {
       setAlerts(prev => [...prev, { msg: 'Right-click detected.', time: new Date() }]);
       setShowAlert(true);
     } catch (error) {
-      console.error('Error handling right-click:', error);
+      Logger.error('Error handling right-click', null, error);
     }
   }, [user, testId, currentQuestion, logMonitoringEvent]);
 
   // Keyboard shortcut detection
   const handleKeyboardShortcut = useCallback(async (e) => {
-    if (!user || !testId) return;
+    if (!user || !testId) {return;}
     
     const suspiciousShortcuts = [
       { keys: ['Control', 'c'], name: 'Ctrl+C (Copy)' },
@@ -904,9 +898,9 @@ function TestRunner() {
     ];
 
     const pressedKeys = [];
-    if (e.ctrlKey) pressedKeys.push('Control');
-    if (e.shiftKey) pressedKeys.push('Shift');
-    if (e.altKey) pressedKeys.push('Alt');
+    if (e.ctrlKey) {pressedKeys.push('Control');}
+    if (e.shiftKey) {pressedKeys.push('Shift');}
+    if (e.altKey) {pressedKeys.push('Alt');}
     if (e.key && !['Control', 'Shift', 'Alt'].includes(e.key)) {
       pressedKeys.push(e.key.toLowerCase());
     }
@@ -936,7 +930,7 @@ function TestRunner() {
         setAlerts(prev => [...prev, { msg: `Keyboard shortcut blocked: ${matchedShortcut.name}`, time: new Date() }]);
         setShowAlert(true);
       } catch (error) {
-        console.error('Error logging keyboard shortcut:', error);
+        Logger.error('Error logging keyboard shortcut', null, error);
       }
     }
   }, [user, testId, currentQuestion, logMonitoringEvent]);
@@ -952,39 +946,39 @@ function TestRunner() {
     });
     
     if (!testData || isSubmitting || showInstructions) {
-      console.log('🔍 EVENT LISTENERS: Skipping setup - no test data, submitting, or showing instructions');
+      Logger.debug('Skipping event listener setup - conditions not met');
       return;
     }
 
-    console.log('🔍 EVENT LISTENERS: Adding event listeners...');
+    Logger.debug('Adding event listeners');
     
     // Add event listeners
     document.addEventListener('copy', handleCopy);
     document.addEventListener('contextmenu', handleRightClick);
     document.addEventListener('keydown', handleKeyboardShortcut);
 
-    console.log('✅ EVENT LISTENERS: All monitoring event listeners added');
+    Logger.debug('All monitoring event listeners added');
 
     return () => {
-      console.log('🔍 EVENT LISTENERS: Removing event listeners...');
+      Logger.debug('Removing event listeners');
       // Remove event listeners
       document.removeEventListener('copy', handleCopy);
       document.removeEventListener('contextmenu', handleRightClick);
       document.removeEventListener('keydown', handleKeyboardShortcut);
-      console.log('✅ EVENT LISTENERS: All monitoring event listeners removed');
+      Logger.debug('All monitoring event listeners removed');
     };
-  }, [testData, isSubmitting, showInstructions, handleCopy, handleRightClick, handleKeyboardShortcut]);
+  }, [testData, isSubmitting, showInstructions, handleCopy, handleRightClick, handleKeyboardShortcut, testId, user?.uid]);
 
   // Keyboard navigation (separate from monitoring)
   useEffect(() => {
     const navHandler = (e) => {
-      if (isSubmitting || !sortedQuestions || showInstructions) return;
+      if (isSubmitting || !sortedQuestions || showInstructions) {return;}
       
       // Only handle navigation keys when not in input fields
       const target = e.target;
       const isInputField = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.contentEditable === 'true';
       
-      if (isInputField) return;
+      if (isInputField) {return;}
       
       // Only handle navigation keys, let monitoring handle suspicious shortcuts
       if (e.key === 'ArrowRight' && current < sortedQuestions.length - 1 && !e.ctrlKey && !e.shiftKey && !e.altKey) {
@@ -1029,7 +1023,7 @@ function TestRunner() {
             className="btn btn-primary"
             disabled={!password.trim()}
           >
-            Enter Test
+            Enter In Test 🚀
           </button>
         </div>
       </div>
@@ -1043,8 +1037,7 @@ function TestRunner() {
         <div className="instructions-container">
           <div className="instructions-header">
             <h1>{testData.title}</h1>
-            <div className="test-info">
-            </div>
+            <div className="test-info" />
           </div>
 
           <div className="instructions-content">
@@ -1124,9 +1117,9 @@ function TestRunner() {
   if (isLoading) {
     return <Loading message="Loading test" subtext="Preparing your test environment" />;
   }
-  if (errMsg) return <div className="test-container"><div className="test-card">Error: {errMsg}</div></div>;
-  if (!testData) return <div className="test-container"><div className="test-card">Test not found</div></div>;
-  if (!user) return <div className="test-container"><div className="test-card">Please log in</div></div>;
+  if (errMsg) {return <div className="test-container"><div className="test-card">Error: {errMsg}</div></div>;}
+  if (!testData) {return <div className="test-container"><div className="test-card">Test not found</div></div>;}
+  if (!user) {return <div className="test-container"><div className="test-card">Please log in</div></div>;}
 
   return (
     <div className="test-runner">
@@ -1151,7 +1144,7 @@ function TestRunner() {
               <button
                 className="btn btn-outline"
                 onClick={async () => {
-                  console.log('🔍 MANUAL TEST: Creating manual monitoring event...');
+                  Logger.debug('Creating manual monitoring event');
                   try {
                     await logMonitoringEvent(
                       'manual_test',
@@ -1159,10 +1152,10 @@ function TestRunner() {
                       'low',
                       { manualTest: true }
                     );
-                    alert('Test monitoring event created! Check admin dashboard.');
+                    showSuccess('Test monitoring event created! Check admin dashboard.');
                   } catch (error) {
-                    console.error('❌ MANUAL TEST: Error:', error);
-                    alert('Error creating test event: ' + error.message);
+                    Logger.error('Manual test error', null, error);
+                    showError('Error creating test event: ' + error.message, error);
                   }
                 }}
                 style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem' }}
@@ -1172,7 +1165,7 @@ function TestRunner() {
               <button
                 className="btn btn-secondary"
                 onClick={async () => {
-                  console.log('🔍 DIRECT TEST: Testing Firestore write...');
+                  Logger.debug('Testing direct Firestore write');
                   try {
                     const result = await addDoc(collection(db, 'monitoring'), {
                       candidateId: user?.uid || 'test-user',
@@ -1183,11 +1176,11 @@ function TestRunner() {
                       severity: 'info',
                       test: true
                     });
-                    console.log('✅ DIRECT TEST: Success!', result.id);
-                    alert('✅ Monitoring event created successfully! ID: ' + result.id);
+                    Logger.info('Direct test success', { resultId: result.id });
+                    showSuccess('✅ Monitoring event created successfully! ID: ' + result.id);
                   } catch (error) {
-                    console.error('❌ DIRECT TEST: Failed:', error);
-                    alert('❌ Error: ' + error.message);
+                    Logger.error('Direct test failed', null, error);
+                    showError('❌ Error: ' + error.message, error);
                   }
                 }}
                 style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem', marginLeft: '0.5rem' }}
@@ -1201,7 +1194,7 @@ function TestRunner() {
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
-              console.log('Submit button clicked');
+              Logger.debug('Submit button clicked');
               handleSubmit();
             }}
             disabled={isSubmitting}
@@ -1447,7 +1440,7 @@ function TestRunner() {
             </button>
             <button
               className="btn btn-secondary"
-              onClick={() => alert('Progress is auto-saved!')}
+              onClick={() => showInfo('Progress is auto-saved!')}
             >
               Save Progress
             </button>
