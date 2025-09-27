@@ -23,6 +23,28 @@ export function FirebaseProvider({ children }) {
         setLoading(false);
         return;
       }
+      
+      // Check if email is verified for non-admin users
+      if (!u.emailVerified) {
+        const userEmail = (u.email || '').toLowerCase();
+        const isDefaultAdmin = userEmail === appConfig.superAdminEmail.toLowerCase();
+        
+        // Allow admin to bypass email verification, but require it for all other users
+        if (!isDefaultAdmin) {
+          Logger.warn('User with unverified email detected, signing out', {
+            email: u.email,
+            uid: u.uid,
+            emailVerified: u.emailVerified
+          });
+          
+          // Sign out user with unverified email
+          await auth.signOut();
+          setError('Please verify your email before accessing the application.');
+          setLoading(false);
+          return;
+        }
+      }
+      
       try {
         const ref = doc(db, 'user', u.uid);
         const snap = await getDoc(ref);
@@ -75,10 +97,11 @@ export function FirebaseProvider({ children }) {
             role: assignedRole,
             blocked: false,
             domain: 'Full Stack',
+            emailVerified: u.emailVerified,
             createdAt: serverTimestamp(),
             lastLogin: serverTimestamp(),
           }, { merge: true });
-          setUserDoc({ userId: u.uid, name: u.displayName || '', email: u.email || '', role: assignedRole, blocked: false, domain: 'Full Stack' });
+          setUserDoc({ userId: u.uid, name: u.displayName || '', email: u.email || '', role: assignedRole, blocked: false, domain: 'Full Stack', emailVerified: u.emailVerified });
         } else {
           // Check if existing user has wrong role and fix it
           const existingData = snap.data();
@@ -91,10 +114,28 @@ export function FirebaseProvider({ children }) {
             try {
               await updateDoc(ref, {
                 role: assignedRole,
+                emailVerified: u.emailVerified,
                 lastLogin: serverTimestamp()
               });
             } catch (updateError) {
               Logger.error('Role update failed', null, updateError);
+            }
+          }
+          
+          // Always sync emailVerified status if it differs
+          if (existingData.emailVerified !== u.emailVerified) {
+            try {
+              await updateDoc(ref, {
+                emailVerified: u.emailVerified,
+                ...(u.emailVerified && !existingData.emailVerifiedAt && { emailVerifiedAt: serverTimestamp() })
+              });
+              Logger.info('Email verification status synced', {
+                uid: u.uid,
+                email: u.email,
+                emailVerified: u.emailVerified
+              });
+            } catch (syncError) {
+              Logger.error('Email verification sync failed', null, syncError);
             }
           }
 
@@ -108,9 +149,20 @@ export function FirebaseProvider({ children }) {
             if (typeof data.blocked !== 'boolean') {repair.blocked = false;}
             if (!data.role) {repair.role = assignedRole;}
             if (!data.domain) {repair.domain = 'Full Stack';}
+            if (typeof data.emailVerified !== 'boolean' || data.emailVerified !== u.emailVerified) {
+              repair.emailVerified = u.emailVerified;
+              if (u.emailVerified && !data.emailVerifiedAt) {
+                repair.emailVerifiedAt = serverTimestamp();
+              }
+            }
             setUserDoc({ ...data, ...repair });
             if (Object.keys(repair).length > 0) {
-              try { await updateDoc(ref, { ...repair, lastLogin: serverTimestamp() }); } catch (_) {}
+              try { 
+                await updateDoc(ref, { ...repair, lastLogin: serverTimestamp() }); 
+                Logger.debug('User document repaired', { uid: u.uid, repairs: Object.keys(repair) });
+              } catch (repairError) {
+                Logger.error('Document repair failed', null, repairError);
+              }
             }
           }, (error) => {
             // Suppress WebChannelConnection errors

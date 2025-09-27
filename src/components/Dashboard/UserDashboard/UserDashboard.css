@@ -137,7 +137,7 @@
 }
 
 .meta-item {
-  display: flex;
+  display: inline-table;
   align-items: center;
   gap: 0.5rem;
   font-size: 0.875rem;
@@ -361,15 +361,15 @@
   .results-grid {
     grid-template-columns: 1fr;
   }
-  
+
   .result-card {
     padding: 1.5rem;
   }
-  
+
   .score-value {
     font-size: 2.25rem;
   }
-  
+
   .score-total {
     font-size: 1.25rem;
   }
@@ -396,25 +396,25 @@
   .dashboard-header {
     padding: 1rem;
   }
-  
+
   .header-content {
     flex-direction: column;
     gap: 1rem;
     align-items: flex-start;
   }
-  
+
   .dashboard-content {
     padding: 1rem;
   }
-  
+
   .dashboard-main {
     padding: 1rem;
   }
-  
+
   .tests-grid {
     grid-template-columns: 1fr;
   }
-  
+
   .test-meta {
     flex-direction: column;
     gap: 0.5rem;
@@ -498,7 +498,7 @@
 .tc-tab.is-active {
   color: white;
   background: linear-gradient(135deg, #3b82f6 0%, #6366f1 50%, #8b5cf6 100%);
-  box-shadow: 
+  box-shadow:
     0 4px 14px 0 rgba(59, 130, 246, 0.4),
     0 2px 4px 0 rgba(0, 0, 0, 0.1);
   transform: translateY(-2px);
@@ -507,14 +507,14 @@
 
 .theme-candidate .tc-tab.is-active {
   background: linear-gradient(135deg, #3b82f6 0%, #10b981 100%);
-  box-shadow: 
+  box-shadow:
     0 4px 14px 0 rgba(59, 130, 246, 0.4),
     0 2px 4px 0 rgba(0, 0, 0, 0.1);
 }
 
 .theme-head .tc-tab.is-active {
   background: linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%);
-  box-shadow: 
+  box-shadow:
     0 4px 14px 0 rgba(139, 92, 246, 0.4),
     0 2px 4px 0 rgba(0, 0, 0, 0.1);
 }
@@ -525,7 +525,7 @@
 
 .tc-tab:focus {
   outline: none;
-  box-shadow: 
+  box-shadow:
     0 0 0 3px rgba(59, 130, 246, 0.3),
     0 4px 12px -2px rgba(59, 130, 246, 0.15);
 }

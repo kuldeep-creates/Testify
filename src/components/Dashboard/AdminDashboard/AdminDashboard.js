@@ -114,24 +114,7 @@ function AdminOverview() {
                   <div className="test-meta">
                     <div className="meta-row">
                       <span className="meta-item">
-                        <span className="meta-icon">🎯</span>
-                        <span className="meta-label">Branch:</span>
-                        <span className="meta-value">{test.branch || 'General'}</span>
-                      </span>
-                      <span className="meta-item">
-                        <span className="meta-icon">⏱️</span>
-                        <span className="meta-label">Duration:</span>
-                        <span className="meta-value">{test.duration || '60 mins'}</span>
-                      </span>
-                    </div>
-                    <div className="meta-row">
-                      <span className="meta-item">
-                        <span className="meta-icon">📅</span>
-                        <span className="meta-label">Starts:</span>
-                        <span className="meta-value">{formatDateTime(test.startTime || test.createdAt)}</span>
-                      </span>
-                      <span className="meta-item">
-                        <span className="meta-icon">📊</span>
+
                         <span className="meta-label">Submissions:</span>
                         <span className="meta-value">{test.totalSubmissions || 0}</span>
                       </span>
@@ -668,13 +651,7 @@ function AdminUsers() {
         </div>
       )}
 
-      {/* Permission Notice */}
-      {!canPerformAdminActions && (
-        <div className="permission-notice">
-          <span className="notice-icon">⚠️</span>
-          <span>You have read-only access. Contact the super admin for admin permissions.</span>
-        </div>
-      )}
+
     </div>
   );
 }
@@ -1619,37 +1596,15 @@ function SubmissionDetailView({ submission, test, onBack }) {
           <Icon name="submissions" size="small" /> Back to Submissions
         </button>
         <div className="submission-info">
-          <h2>Submission Details</h2>
           <div className="submission-meta">
             <div className="meta-item">
               <strong>Candidate:</strong> {submission.candidateName || 'Unknown'}
             </div>
-            <div className="meta-item">
-              <strong>Test:</strong> {test.title}
-            </div>
+
             <div className="meta-item">
               <strong>Submitted:</strong> {formatDateTime(submission.submittedAt)}
             </div>
-            <div className="meta-item">
-              <strong>Score:</strong> {(() => {
-                if (submission.totalMarksAwarded !== undefined && submission.totalMarksAwarded !== null) {
-                  let testTotalMarks = test?.totalMarks || 100;
 
-                  // Fix data issue: if totalMarksAwarded > testTotalMarks, likely testTotalMarks is wrong
-                  if (submission.totalMarksAwarded > testTotalMarks && testTotalMarks < 50) {
-                    testTotalMarks = 100; // Default to 100 as it's more reasonable
-                  }
-
-                  return `${submission.totalMarksAwarded}/${testTotalMarks} marks`;
-                } else if (submission.score !== undefined) {
-                  const testTotalMarks = test?.totalMarks || 100;
-                  const calculatedMarks = Math.round((submission.score / 100) * testTotalMarks);
-                  return `${calculatedMarks}/${testTotalMarks} marks (${submission.score}%)`;
-                } else {
-                  return 'Not graded';
-                }
-              })()}
-            </div>
             <div className="meta-item">
               <strong>Status:</strong>
               <span className={`badge ${submission.status === 'evaluated' ? 'badge-success' : 'badge-warning'}`}>

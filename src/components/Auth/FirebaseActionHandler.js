@@ -1,7 +1,8 @@
 import { useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { applyActionCode } from 'firebase/auth';
-import { auth } from '../../firebase';
+import { applyActionCode, onAuthStateChanged } from 'firebase/auth';
+import { doc, updateDoc } from 'firebase/firestore';
+import { auth, db } from '../../firebase';
 import { showError, showSuccess } from '../../utils/notifications';
 import Logger from '../../utils/logger';
 import './FirebaseActionHandler.css';
@@ -31,6 +32,39 @@ export default function FirebaseActionHandler() {
         switch (mode) {
           case 'verifyEmail':
             await applyActionCode(auth, oobCode);
+            
+            // Update the emailVerified status in Firestore
+            const updateEmailVerificationStatus = () => {
+              return new Promise((resolve) => {
+                const unsubscribe = onAuthStateChanged(auth, async (user) => {
+                  if (user && user.emailVerified) {
+                    try {
+                      const userRef = doc(db, 'user', user.uid);
+                      await updateDoc(userRef, {
+                        emailVerified: true,
+                        emailVerifiedAt: new Date()
+                      });
+                      Logger.info('Email verification status updated in database', {
+                        uid: user.uid,
+                        email: user.email
+                      });
+                    } catch (error) {
+                      Logger.error('Failed to update email verification status', {
+                        uid: user.uid,
+                        email: user.email,
+                        error: error.message
+                      });
+                    }
+                    unsubscribe();
+                    resolve();
+                  }
+                });
+              });
+            };
+            
+            // Wait for auth state to update, then update database
+            await updateEmailVerificationStatus();
+            
             showSuccess('Email verified successfully! Redirecting to home page...');
             // Redirect to home page after verification
             navigate('/?verified=true');

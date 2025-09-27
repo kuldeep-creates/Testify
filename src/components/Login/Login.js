@@ -72,13 +72,27 @@ function Login() {
     setLoading(true);
     try {
       const normalizedEmail = email.trim();
-      await signInWithEmailAndPassword(auth, normalizedEmail, password);
+      const userCredential = await signInWithEmailAndPassword(auth, normalizedEmail, password);
+      const user = userCredential.user;
+
+      // Check if email is verified
+      if (!user.emailVerified) {
+        // Sign out the user immediately
+        await auth.signOut();
+        setError('Please verify your email before signing in. ');
+        Logger.warn('Login attempt with unverified email', {
+          email: normalizedEmail,
+          uid: user.uid
+        });
+        return;
+      }
+
       setSuccess('Login successful! Redirecting...');
-      
+
       // Check for redirect URL from query parameters
       const params = new URLSearchParams(location.search);
       const redirectUrl = params.get('redirect');
-      
+
       if (redirectUrl) {
         setTimeout(() => navigate(redirectUrl), 800);
       } else {

@@ -20,6 +20,13 @@ function Register() {
   const [name, setName] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [passwordValidation, setPasswordValidation] = useState({
+    length: false,
+    uppercase: false,
+    number: false
+  });
+  const [emailSendFailed, setEmailSendFailed] = useState(false);
+  const [registeredUser, setRegisteredUser] = useState(null);
 
   // Check for email verification redirect
   const location = useLocation();
@@ -37,39 +44,139 @@ function Register() {
     }
   }, [location]);
 
-  const sendVerificationEmail = async (user) => {
+  const sendVerificationEmail = async (user, retryCount = 0) => {
+    const maxRetries = 2;
+    
     try {
-      // Firebase email template might be restricted, but we can still send verification
-      // Action URL will be configured in Firebase Console as: 
-      // https://testify.kuldeep.space/__/auth/action
-      const actionCodeSettings = {
-        url: `https://testify.kuldeep.space/?verified=true`,
-        handleCodeInApp: false
-      };
+      // First try: Send verification email without custom action code settings
+      // This uses Firebase's default email template and redirect URL
+      await sendEmailVerification(user);
       
-      await sendEmailVerification(user, actionCodeSettings);
       setVerificationEmailSent(true);
       showSuccess(`Verification email sent to ${user.email}. Please check your inbox and spam folder.`);
       
       Logger.info('Verification email sent successfully', {
         email: user.email,
         uid: user.uid,
-        actionUrl: actionCodeSettings.url
+        attempt: retryCount + 1
       });
+      
     } catch (error) {
       Logger.error('Error sending verification email', {
         errorCode: error.code,
         errorMessage: error.message,
-        email: user.email
+        email: user.email,
+        attempt: retryCount + 1
       });
-      showError('Failed to send verification email. Please try again later.');
+      
+      // Retry logic for network errors
+      if (retryCount < maxRetries && 
+          (error.code === 'auth/network-request-failed' || 
+           error.code === 'auth/timeout')) {
+        Logger.info('Retrying email verification send', { 
+          attempt: retryCount + 2, 
+          maxRetries: maxRetries + 1 
+        });
+        
+        // Wait a bit before retrying
+        await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1)));
+        return sendVerificationEmail(user, retryCount + 1);
+      }
+      
+      // Provide more specific error messages based on error codes
+      let errorMessage = 'Failed to send verification email. Please try again later.';
+      
+      switch (error.code) {
+        case 'auth/too-many-requests':
+          errorMessage = 'Too many verification emails sent. Please wait a few minutes before trying again.';
+          break;
+        case 'auth/user-not-found':
+          errorMessage = 'User account not found. Please try registering again.';
+          break;
+        case 'auth/invalid-email':
+          errorMessage = 'Invalid email address. Please check your email and try again.';
+          break;
+        case 'auth/network-request-failed':
+          errorMessage = 'Network error. Please check your internet connection and try again.';
+          break;
+        case 'auth/quota-exceeded':
+          errorMessage = 'Email quota exceeded. Please try again later.';
+          break;
+        case 'auth/unauthorized-domain':
+          errorMessage = 'Email domain not authorized. Please contact support.';
+          break;
+        case 'auth/invalid-continue-uri':
+          errorMessage = 'Invalid redirect URL configuration. Please contact support.';
+          break;
+        default:
+          // For unknown errors, provide the actual error message if available
+          if (error.message && !error.message.includes('internal')) {
+            errorMessage = `Email verification failed: ${error.message}`;
+          }
+          break;
+      }
+      
+      showError(errorMessage);
+      setEmailSendFailed(true);
     }
+  };
+
+  const handleResendVerification = async () => {
+    if (!registeredUser) return;
+    
+    setEmailSendFailed(false);
+    setLoading(true);
+    
+    try {
+      await sendVerificationEmail(registeredUser);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const validatePassword = (password) => {
+    const errors = [];
+    
+    if (password.length < 8) {
+      errors.push('at least 8 characters');
+    }
+    
+    if (!/[A-Z]/.test(password)) {
+      errors.push('at least one uppercase letter');
+    }
+    
+    if (!/[0-9]/.test(password)) {
+      errors.push('at least one number');
+    }
+    
+    return errors;
+  };
+
+  const updatePasswordValidation = (password) => {
+    setPasswordValidation({
+      length: password.length >= 8,
+      uppercase: /[A-Z]/.test(password),
+      number: /[0-9]/.test(password)
+    });
+  };
+
+  const handlePasswordChange = (e) => {
+    const newPassword = e.target.value;
+    setPassword(newPassword);
+    updatePasswordValidation(newPassword);
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
     setSuccess('');
+    
+    // Validate password strength
+    const passwordErrors = validatePassword(password);
+    if (passwordErrors.length > 0) {
+      setError(`Password must contain ${passwordErrors.join(', ')}`);
+      return;
+    }
     
     // Validate passwords match
     if (password !== confirmPassword) {
@@ -106,15 +213,24 @@ function Register() {
         });
       }
       
+      // Store user for potential resend
+      setRegisteredUser(user);
+      
       // Send verification email
       await sendVerificationEmail(user);
       
-      // Sign out the user until they verify their email
+      // Sign out the user immediately - they must verify email first
       await auth.signOut();
       
-      // Show confirmation card instead of navigating immediately
-      setUserEmail(normalizedEmail);
-      setShowConfirmationCard(true);
+      // Show verification required message instead of redirecting
+      if (!emailSendFailed) {
+        setSuccess('Account created! Please check your email and click the verification link to complete registration.');
+        // Show confirmation card instead of navigating
+        setUserEmail(normalizedEmail);
+        setShowConfirmationCard(true);
+      } else {
+        setSuccess('Account created, but email verification failed. Please use the resend button below.');
+      }
     } catch (err) {
       Logger.error('Registration failed', {
         errorCode: err.code,
@@ -150,18 +266,21 @@ function Register() {
               </svg>
             </div>
             
-            <h2 className="confirmation-title">Registration Successful!</h2>
+            <h2 className="confirmation-title">Email Verification Required!</h2>
             <p className="confirmation-message">
-              A confirmation email has been sent to <strong>{userEmail}</strong>
+              A verification email has been sent to <strong>{userEmail}</strong>
             </p>
             
             <div className="confirmation-steps">
-              <h3>Next Steps:</h3>
+              <h3>Complete Your Registration:</h3>
               <ol>
                 <li>Check your email inbox (and spam folder)</li>
                 <li>Click the verification link in the email</li>
-                <li>You'll be redirected to your dashboard</li>
+                <li>Return here and sign in with your credentials</li>
               </ol>
+              <p style={{marginTop: '1rem', fontSize: '0.875rem', color: '#dc2626', fontWeight: '500'}}>
+                ⚠️ You cannot access your account until you verify your email address.
+              </p>
             </div>
             
             <div className="confirmation-actions">
@@ -263,7 +382,7 @@ function Register() {
                       className="register-input"
                       placeholder="Password"
                       value={password}
-                      onChange={(e) => setPassword(e.target.value)}
+                      onChange={handlePasswordChange}
                       required
                     />
                     <button
@@ -284,6 +403,24 @@ function Register() {
                       )}
                     </button>
                   </div>
+                  
+                  {/* Password Requirements */}
+                  {password && !(passwordValidation.length && passwordValidation.uppercase && passwordValidation.number) && (
+                    <div className="password-requirements">
+                      <div className={`requirement ${passwordValidation.length ? 'valid' : 'invalid'}`}>
+                        <span className="requirement-icon">{passwordValidation.length ? '✓' : '✗'}</span>
+                        At least 8 characters
+                      </div>
+                      <div className={`requirement ${passwordValidation.uppercase ? 'valid' : 'invalid'}`}>
+                        <span className="requirement-icon">{passwordValidation.uppercase ? '✓' : '✗'}</span>
+                        One uppercase letter
+                      </div>
+                      <div className={`requirement ${passwordValidation.number ? 'valid' : 'invalid'}`}>
+                        <span className="requirement-icon">{passwordValidation.number ? '✓' : '✗'}</span>
+                        One number
+                      </div>
+                    </div>
+                  )}
 
                 </div>
 
@@ -329,6 +466,23 @@ function Register() {
               >
                 {loading ? 'Creating Account...' : 'Create Account'}
               </button>
+
+              {/* Resend Verification Email Button */}
+              {emailSendFailed && registeredUser && (
+                <div className="resend-verification-container">
+                  <p className="resend-verification-text">
+                    Couldn't send verification email? Try again:
+                  </p>
+                  <button
+                    type="button"
+                    className={`btn btn-secondary ${loading ? 'btn-loading' : ''}`}
+                    onClick={handleResendVerification}
+                    disabled={loading}
+                  >
+                    {loading ? 'Sending...' : 'Resend Verification Email'}
+                  </button>
+                </div>
+              )}
 
               <div className="register-link-container">
                 <span className="register-link-text">Already have an account? </span>
