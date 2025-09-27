@@ -18,10 +18,10 @@ if (process.env.NODE_ENV === 'development') {
   console.error = (...args) => {
     // Only show critical Firebase/React errors
     const message = args[0];
-    if (typeof message === 'string' && 
-        (message.includes('Warning:') || 
-         message.includes('Error:') ||
-         message.includes('Failed to'))) {
+    if (
+      typeof message === 'string' &&
+      (message.includes('Warning:') || message.includes('Error:') || message.includes('Failed to'))
+    ) {
       return; // Suppress warnings and non-critical errors
     }
     originalError.apply(console, args);
@@ -31,7 +31,7 @@ if (process.env.NODE_ENV === 'development') {
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
   <React.StrictMode>
-    <BrowserRouter>
+    <BrowserRouter basename={process.env.PUBLIC_URL || ''}>
       <FirebaseProvider>
         <App />
       </FirebaseProvider>

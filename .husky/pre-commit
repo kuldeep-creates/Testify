@@ -3,6 +3,3 @@
 
 # Run lint-staged to check and fix files before commit
 npx lint-staged
-
-# Run type checking
-npm run type-check

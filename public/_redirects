@@ -1,0 +1,8 @@
+# Netlify redirects for React Router
+# This ensures that all routes are handled by the React app
+
+# Handle all routes within the /test subdirectory
+/test/* /test/index.html 200
+
+# Fallback for any other routes
+/* /index.html 200
