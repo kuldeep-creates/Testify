@@ -1,8 +1,9 @@
 import { sendPasswordResetEmail, signInWithEmailAndPassword } from 'firebase/auth';
+import { doc, getDoc } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 
-import { auth } from '../../firebase';
+import { auth, db } from '../../firebase';
 import Logger from '../../utils/logger';
 import { showError, showSuccess } from '../../utils/notifications';
 import './Login.css';
@@ -75,8 +76,58 @@ function Login() {
       const userCredential = await signInWithEmailAndPassword(auth, normalizedEmail, password);
       const user = userCredential.user;
 
-      // Login successful - no email verification check needed
-      // Email verification is handled during registration only
+      // Check email verification status from database
+      try {
+        const userDocRef = doc(db, 'user', user.uid);
+        const userDocSnap = await getDoc(userDocRef);
+        
+        if (userDocSnap.exists()) {
+          const userData = userDocSnap.data();
+          const isEmailVerified = userData.emailVerified === true;
+          
+          // Debug logging
+          console.log('🔍 DEBUG - User verification check:', {
+            uid: user.uid,
+            email: normalizedEmail,
+            emailVerifiedFromDB: userData.emailVerified,
+            isEmailVerified: isEmailVerified,
+            userData: userData
+          });
+          
+          if (!isEmailVerified) {
+            // Sign out user if email not verified
+            await auth.signOut();
+            setError('Please verify your email before signing in. Check your inbox and spam folder.');
+            Logger.warn('Login blocked - email not verified', {
+              email: normalizedEmail,
+              uid: user.uid,
+              emailVerified: userData.emailVerified
+            });
+            return;
+          }
+          
+          Logger.info('Login successful - email verified', {
+            email: normalizedEmail,
+            uid: user.uid,
+            emailVerified: isEmailVerified
+          });
+        } else {
+          // User document doesn't exist
+          await auth.signOut();
+          setError('User profile not found. Please contact support.');
+          Logger.error('User document not found during login', {
+            email: normalizedEmail,
+            uid: user.uid
+          });
+          return;
+        }
+      } catch (dbError) {
+        Logger.error('Error checking user verification status', {
+          error: dbError.message,
+          uid: user.uid
+        });
+        // Allow login if database check fails (fallback)
+      }
 
       setSuccess('Login successful! Redirecting...');
 
