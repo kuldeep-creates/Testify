@@ -7,48 +7,34 @@
       "config": { "distDir": "build" }
     }
   ],
-  "routes": [
+  "rewrites": [
     {
-      "src": "/test/static/js/(.*)",
-      "headers": { 
-        "cache-control": "public, max-age=31536000, immutable",
-        "content-type": "application/javascript"
-      },
-      "dest": "/test/static/js/$1"
+      "source": "/test/(.*)",
+      "destination": "/$1"
     },
     {
-      "src": "/test/static/css/(.*)",
-      "headers": { 
-        "cache-control": "public, max-age=31536000, immutable",
-        "content-type": "text/css"
-      },
-      "dest": "/test/static/css/$1"
+      "source": "/test",
+      "destination": "/index.html"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/static/js/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
     },
     {
-      "src": "/test/static/media/(.*)",
-      "headers": { "cache-control": "public, max-age=31536000, immutable" },
-      "dest": "/test/static/media/$1"
-    },
-    {
-      "src": "/test/favicon.ico",
-      "dest": "/test/favicon.ico"
-    },
-    {
-      "src": "/test/manifest.json",
-      "headers": { "content-type": "application/json" },
-      "dest": "/test/manifest.json"
-    },
-    {
-      "src": "/test/logo(.*).png",
-      "dest": "/test/logo$1.png"
-    },
-    {
-      "src": "/test/(.*)",
-      "dest": "/test/index.html"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/test/index.html"
+      "source": "/static/css/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
     }
   ]
 }
