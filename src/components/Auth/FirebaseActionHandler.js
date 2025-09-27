@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { applyActionCode, onAuthStateChanged } from 'firebase/auth';
-import { doc, updateDoc } from 'firebase/firestore';
+import { applyActionCode, onAuthStateChanged, createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
+import { doc, updateDoc, getDoc, setDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from '../../firebase';
 import { showError, showSuccess } from '../../utils/notifications';
 import Logger from '../../utils/logger';
@@ -31,6 +31,7 @@ export default function FirebaseActionHandler() {
       try {
         switch (mode) {
           case 'verifyEmail':
+            // Handle email verification for existing users
             await applyActionCode(auth, oobCode);
             
             // Update the emailVerified status in Firestore
@@ -42,7 +43,7 @@ export default function FirebaseActionHandler() {
                       const userRef = doc(db, 'user', user.uid);
                       await updateDoc(userRef, {
                         emailVerified: true,
-                        emailVerifiedAt: new Date()
+                        emailVerifiedAt: serverTimestamp()
                       });
                       Logger.info('Email verification status updated in database', {
                         uid: user.uid,
@@ -65,9 +66,8 @@ export default function FirebaseActionHandler() {
             // Wait for auth state to update, then update database
             await updateEmailVerificationStatus();
             
-            showSuccess('Email verified successfully! Redirecting to home page...');
-            // Redirect to home page after verification
-            navigate('/?verified=true');
+            showSuccess('Email verified successfully! You can now sign in.');
+            navigate('/login?verified=true');
             break;
 
           case 'resetPassword':

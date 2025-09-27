@@ -24,26 +24,7 @@ export function FirebaseProvider({ children }) {
         return;
       }
       
-      // Check if email is verified for non-admin users
-      if (!u.emailVerified) {
-        const userEmail = (u.email || '').toLowerCase();
-        const isDefaultAdmin = userEmail === appConfig.superAdminEmail.toLowerCase();
-        
-        // Allow admin to bypass email verification, but require it for all other users
-        if (!isDefaultAdmin) {
-          Logger.warn('User with unverified email detected, signing out', {
-            email: u.email,
-            uid: u.uid,
-            emailVerified: u.emailVerified
-          });
-          
-          // Sign out user with unverified email
-          await auth.signOut();
-          setError('Please verify your email before accessing the application.');
-          setLoading(false);
-          return;
-        }
-      }
+      // Email verification is optional - allow all users to access the app
       
       try {
         const ref = doc(db, 'user', u.uid);
