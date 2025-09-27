@@ -9,21 +9,46 @@
   ],
   "routes": [
     {
-      "src": "/static/(.*)",
+      "src": "/test/static/js/(.*)",
+      "headers": { 
+        "cache-control": "public, max-age=31536000, immutable",
+        "content-type": "application/javascript"
+      },
+      "dest": "/test/static/js/$1"
+    },
+    {
+      "src": "/test/static/css/(.*)",
+      "headers": { 
+        "cache-control": "public, max-age=31536000, immutable",
+        "content-type": "text/css"
+      },
+      "dest": "/test/static/css/$1"
+    },
+    {
+      "src": "/test/static/media/(.*)",
       "headers": { "cache-control": "public, max-age=31536000, immutable" },
-      "dest": "/static/$1"
+      "dest": "/test/static/media/$1"
     },
     {
-      "src": "/favicon.ico",
-      "dest": "/favicon.ico"
+      "src": "/test/favicon.ico",
+      "dest": "/test/favicon.ico"
     },
     {
-      "src": "/assets/(.*)",
-      "dest": "/assets/$1"
+      "src": "/test/manifest.json",
+      "headers": { "content-type": "application/json" },
+      "dest": "/test/manifest.json"
+    },
+    {
+      "src": "/test/logo(.*).png",
+      "dest": "/test/logo$1.png"
+    },
+    {
+      "src": "/test/(.*)",
+      "dest": "/test/index.html"
     },
     {
       "src": "/(.*)",
-      "dest": "/index.html"
+      "dest": "/test/index.html"
     }
   ]
 }

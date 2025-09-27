@@ -7,6 +7,23 @@ import App from './App';
 import { FirebaseProvider } from './context/FirebaseContext';
 import reportWebVitals from './reportWebVitals';
 
+// Global error handler for chunk loading errors
+window.addEventListener('error', (event) => {
+  if (event.message && event.message.includes('Loading chunk')) {
+    console.log('Chunk loading error detected globally, reloading...');
+    window.location.reload();
+  }
+});
+
+// Handle unhandled promise rejections (for dynamic imports)
+window.addEventListener('unhandledrejection', (event) => {
+  if (event.reason && event.reason.message && event.reason.message.includes('Loading chunk')) {
+    console.log('Chunk loading promise rejection detected, reloading...');
+    event.preventDefault();
+    window.location.reload();
+  }
+});
+
 // DISABLE ALL CONSOLE OUTPUT IN DEVELOPMENT
 if (process.env.NODE_ENV === 'development') {
   console.log = () => {};
