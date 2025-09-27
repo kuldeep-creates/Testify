@@ -1,9 +1,8 @@
 import { sendPasswordResetEmail, signInWithEmailAndPassword } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 
-import { auth, db } from '../../firebase';
+import { auth } from '../../firebase';
 import Logger from '../../utils/logger';
 import { showError, showSuccess } from '../../utils/notifications';
 import './Login.css';
@@ -76,48 +75,8 @@ function Login() {
       const userCredential = await signInWithEmailAndPassword(auth, normalizedEmail, password);
       const user = userCredential.user;
 
-      // Reload user to get latest email verification status
-      await user.reload();
-      
-      let isEmailVerified = user.emailVerified;
-      
-      // If Firebase Auth says not verified, double-check with Firestore database
-      if (!isEmailVerified) {
-        try {
-          const userDocRef = doc(db, 'user', user.uid);
-          const userDocSnap = await getDoc(userDocRef);
-          
-          if (userDocSnap.exists()) {
-            const userData = userDocSnap.data();
-            isEmailVerified = userData.emailVerified === true;
-            
-            Logger.info('Email verification status check', {
-              authVerified: user.emailVerified,
-              dbVerified: userData.emailVerified,
-              finalDecision: isEmailVerified
-            });
-          }
-        } catch (dbError) {
-          Logger.error('Error checking email verification in database', {
-            error: dbError.message,
-            uid: user.uid
-          });
-        }
-      }
-      
-      // Check if email is verified (from either source)
-      if (!isEmailVerified) {
-        // Sign out the user immediately
-        await auth.signOut();
-        setError('Please verify your email before signing in. Check your inbox and spam folder for the verification email.');
-        Logger.warn('Login attempt with unverified email', {
-          email: normalizedEmail,
-          uid: user.uid,
-          authEmailVerified: user.emailVerified,
-          finalEmailVerified: isEmailVerified
-        });
-        return;
-      }
+      // Login successful - no email verification check needed
+      // Email verification is handled during registration only
 
       setSuccess('Login successful! Redirecting...');
 
