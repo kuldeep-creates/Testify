@@ -1,11 +1,10 @@
-import { createUserWithEmailAndPassword, sendEmailVerification, updateProfile } from 'firebase/auth';
+import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { useEffect, useState } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import React, { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 
 import { auth, db } from '../../firebase';
 import Logger from '../../utils/logger';
-import { showError, showSuccess } from '../../utils/notifications';
 import '../../components/Loading/Loading.css';
 import './Register.css';
 
@@ -20,51 +19,6 @@ function Register() {
   const [name, setName] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-
-  // Check for email verification redirect
-  const location = useLocation();
-  const [, setVerificationEmailSent] = useState(false);
-  const [showConfirmationCard, setShowConfirmationCard] = useState(false);
-  const [userEmail, setUserEmail] = useState('');
-
-  useEffect(() => {
-    // Check if we're returning from email verification
-    const params = new URLSearchParams(location.search);
-    if (params.get('mode') === 'verifyEmail') {
-      showSuccess('Email verified successfully! Please sign in.');
-      // Clean up the URL
-      window.history.replaceState({}, document.title, location.pathname);
-    }
-  }, [location]);
-
-  const sendVerificationEmail = async (user) => {
-    try {
-      // Firebase email template might be restricted, but we can still send verification
-      // Action URL will be configured in Firebase Console as: 
-      // https://testify.kuldeep.space/__/auth/action
-      const actionCodeSettings = {
-        url: `https://testify.kuldeep.space/?verified=true`,
-        handleCodeInApp: false
-      };
-      
-      await sendEmailVerification(user, actionCodeSettings);
-      setVerificationEmailSent(true);
-      showSuccess(`Verification email sent to ${user.email}. Please check your inbox and spam folder.`);
-      
-      Logger.info('Verification email sent successfully', {
-        email: user.email,
-        uid: user.uid,
-        actionUrl: actionCodeSettings.url
-      });
-    } catch (error) {
-      Logger.error('Error sending verification email', {
-        errorCode: error.code,
-        errorMessage: error.message,
-        email: user.email
-      });
-      showError('Failed to send verification email. Please try again later.');
-    }
-  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -81,21 +35,15 @@ function Register() {
     try {
       const normalizedEmail = email.trim();
       const cred = await createUserWithEmailAndPassword(auth, normalizedEmail, password);
-      const user = cred.user;
-      
-      // Update user's display name
-      await updateProfile(user, { displayName: name });
-      
-      // Create user document in Firestore
+      const uid = cred.user.uid;
       try {
-        await setDoc(doc(db, 'user', user.uid), {
-          userId: user.uid,
+        await setDoc(doc(db, 'user', uid), {
+          userId: uid,
           name,
           email: normalizedEmail,
-          role: 'candidate', // Always set new registrations as candidate
+          role: 'candidate', // Default to candidate, admin can change role
           blocked: false,
-          domain: 'Full Stack',
-          emailVerified: false,
+          domain: 'Full Stack', // Default domain, admin can change
           createdAt: serverTimestamp(),
           lastLogin: serverTimestamp(),
         }, { merge: true });
@@ -104,17 +52,10 @@ function Register() {
           errorCode: writeErr.code,
           errorMessage: writeErr.message
         });
+        // Continue to dashboard; FirebaseContext will attempt to create profile lazily
       }
-      
-      // Send verification email
-      await sendVerificationEmail(user);
-      
-      // Sign out the user until they verify their email
-      await auth.signOut();
-      
-      // Show confirmation card instead of navigating immediately
-      setUserEmail(normalizedEmail);
-      setShowConfirmationCard(true);
+      setSuccess('Account created! Redirecting to dashboard...');
+      setTimeout(() => navigate('/dashboard'), 800);
     } catch (err) {
       Logger.error('Registration failed', {
         errorCode: err.code,
@@ -130,69 +71,6 @@ function Register() {
       setLoading(false);
     }
   };
-
-  // If confirmation card should be shown
-  if (showConfirmationCard) {
-    return (
-      <div className="register-container" role="main">
-        {/* Background Illustrations */}
-        <div className="register-background" />
-        <div className="register-background" />
-        <div className="register-background" />
-        <div className="register-background" />
-
-        {/* Confirmation Card */}
-        <div className="register-main">
-          <div className="confirmation-card">
-            <div className="confirmation-icon">
-              <svg className="confirmation-check" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            </div>
-            
-            <h2 className="confirmation-title">Registration Successful!</h2>
-            <p className="confirmation-message">
-              A confirmation email has been sent to <strong>{userEmail}</strong>
-            </p>
-            
-            <div className="confirmation-steps">
-              <h3>Next Steps:</h3>
-              <ol>
-                <li>Check your email inbox (and spam folder)</li>
-                <li>Click the verification link in the email</li>
-                <li>You'll be redirected to your dashboard</li>
-              </ol>
-            </div>
-            
-            <div className="confirmation-actions">
-              <button
-                className="btn btn-primary"
-                onClick={() => navigate('/login')}
-              >
-                Go to Login
-              </button>
-              <button
-                className="btn btn-secondary"
-                onClick={() => {
-                  setShowConfirmationCard(false);
-                  setEmail('');
-                  setPassword('');
-                  setConfirmPassword('');
-                  setName('');
-                }}
-              >
-                Register Another Account
-              </button>
-            </div>
-            
-            <div className="confirmation-help">
-              <p>Didn't receive the email? Check your spam folder or contact support.</p>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="register-container" role="main">

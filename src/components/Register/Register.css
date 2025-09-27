@@ -1,6 +1,10 @@
+<<<<<<< HEAD
 /* Mobile-First Responsive Register Component */
 
 /* Base styles for mobile (320px+) */
+=======
+/* Register Page Styles */
+>>>>>>> parent of 9b6885b (reset password and conformation mail)
 .register-container {
   min-height: 100vh;
   background: linear-gradient(135deg, #f8fafc 0%, #e0f2fe 50%, #e0e7ff 100%);
@@ -8,6 +12,7 @@
   align-items: center;
   justify-content: center;
   padding: 1rem;
+<<<<<<< HEAD
   position: relative;
   overflow-x: hidden;
 }
@@ -141,6 +146,8 @@
   .confirmation-title {
     font-size: 1.5rem;
   }
+=======
+>>>>>>> parent of 9b6885b (reset password and conformation mail)
 }
 
 /* Background decorations - hidden on mobile for performance */

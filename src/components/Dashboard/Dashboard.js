@@ -1,8 +1,7 @@
 import React, { useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 
 import { useFirebase } from '../../context/FirebaseContext';
-import { showSuccess } from '../../utils/notifications';
 import Blocked from '../Blocked/Blocked';
 import Loading from '../Loading/Loading';
 
@@ -13,24 +12,8 @@ import './Dashboard.css';
 
 function Dashboard() {
   const navigate = useNavigate();
-  const location = useLocation();
   const { user, userDoc, blocked, loading } = useFirebase();
   const role = (userDoc?.role || 'candidate').toLowerCase();
-
-  useEffect(() => {
-    // Check for email verification success
-    const params = new URLSearchParams(location.search);
-    if (params.get('verified') === 'true') {
-      const roleParam = params.get('role');
-      if (roleParam === 'candidate') {
-        showSuccess('🎉 Welcome to Testify! Your email has been verified successfully. You can now start taking tests as a candidate.');
-      } else {
-        showSuccess('🎉 Welcome to Testify! Your email has been verified successfully. You can now access all features.');
-      }
-      // Clean up the URL
-      window.history.replaceState({}, document.title, location.pathname);
-    }
-  }, [location]);
 
   useEffect(() => {
     // If not loading and no user, redirect to login
