@@ -318,12 +318,50 @@
 .test-actions {
   display: flex;
   gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+/* Share Link Button Styling */
+.test-actions .btn-primary {
+  background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+  border: none;
+  color: white;
+  transition: all 0.2s ease;
+}
+
+.test-actions .btn-primary:hover {
+  background: linear-gradient(135deg, #2563eb, #1e40af);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(59, 130, 246, 0.3);
+}
+
+.test-actions .btn-success {
+  background: linear-gradient(135deg, #10b981, #059669);
+  animation: pulse-success 0.6s ease-in-out;
+}
+
+@keyframes pulse-success {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+  100% { transform: scale(1); }
 }
 
 .test-description {
   font-size: 0.75rem;
   color: #9ca3af;
   margin-top: 0.5rem;
+}
+
+.manage-subtitle {
+  font-size: 0.875rem;
+  color: #6b7280;
+  margin: 0.5rem 0 0 0;
+  font-weight: normal;
+}
+
+.manage-subtitle strong {
+  color: #3b82f6;
+  font-weight: 600;
 }
 
 /* Head Results Styles */

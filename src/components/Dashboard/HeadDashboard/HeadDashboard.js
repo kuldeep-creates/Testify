@@ -599,6 +599,7 @@ function HeadManageTests() {
   const [editQuestions, setEditQuestions] = useState([]);
   const [editQIndex, setEditQIndex] = useState(0);
   const [editLoading, setEditLoading] = useState(false);
+  const [copiedTestId, setCopiedTestId] = useState(null);
   const { userDoc } = useFirebase();
 
   useEffect(() => {
@@ -632,6 +633,33 @@ function HeadManageTests() {
     } catch (e) {
       console.log('[Head:toggleStatus:error]', e.code, e.message);
       setError(e.message || 'Failed to update test status');
+    }
+  };
+
+  const copyShareableLink = async (testId) => {
+    try {
+      const testUrl = `${window.location.origin}/test/${testId}`;
+      await navigator.clipboard.writeText(testUrl);
+      setCopiedTestId(testId);
+      
+      // Reset the copied state after 2 seconds
+      setTimeout(() => {
+        setCopiedTestId(null);
+      }, 2000);
+    } catch (error) {
+      console.error('Failed to copy link:', error);
+      // Fallback for browsers that don't support clipboard API
+      const textArea = document.createElement('textarea');
+      textArea.value = `${window.location.origin}/test/${testId}`;
+      document.body.appendChild(textArea);
+      textArea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textArea);
+      
+      setCopiedTestId(testId);
+      setTimeout(() => {
+        setCopiedTestId(null);
+      }, 2000);
     }
   };
 
@@ -718,7 +746,12 @@ function HeadManageTests() {
   return (
     <div className="head-manage-tests">
       <div className="manage-header">
-        <h3>Manage Tests</h3>
+        <div>
+          <h3>Manage Tests</h3>
+          <p className="manage-subtitle">
+            Create, edit, and share your tests. Use the <strong>🔗 Share Link</strong> button to copy test URLs for candidates.
+          </p>
+        </div>
         <div className="branch-badge">
           <span>Domain:</span>
           <span className="badge badge-primary">{userDoc?.domain || 'Full Stack'}</span>
@@ -768,6 +801,17 @@ function HeadManageTests() {
                   onClick={() => toggleTestStatus(test.id, test.status)}
                 >
                   {test.status === 'active' ? 'Close' : 'Activate'}
+                </button>
+                <button 
+                  className={`btn btn-primary btn-sm ${copiedTestId === test.id ? 'btn-success' : ''}`}
+                  onClick={() => copyShareableLink(test.id)}
+                  title="Copy shareable test link"
+                >
+                  {copiedTestId === test.id ? (
+                    <>✓ Copied!</>
+                  ) : (
+                    <>🔗 Share Link</>
+                  )}
                 </button>
                 <button 
                   className="btn btn-outline btn-sm"

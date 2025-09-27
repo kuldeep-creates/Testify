@@ -23,7 +23,7 @@ if (missingEnvVars.length > 0 && process.env.NODE_ENV !== 'test') {
   });
   console.error('\n📝 Please check your .env file and ensure all required variables are set.');
   console.error('📋 See .env.example for reference.');
-  
+
   if (process.env.NODE_ENV === 'production') {
     throw new Error('Missing required environment variables in production');
   }

@@ -547,7 +547,7 @@ function TestRunner() {
   useEffect(() => {
     async function fetchData() {
       if (!user) {
-        navigate('/');
+        navigate(`/login?redirect=${encodeURIComponent(`/test/${testId}`)}`);
         return;
       }
       try {

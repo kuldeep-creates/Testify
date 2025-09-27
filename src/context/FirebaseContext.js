@@ -1,6 +1,6 @@
 import { onAuthStateChanged } from 'firebase/auth';
 import { doc, getDoc, onSnapshot, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
-import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 
 import { appConfig } from '../config/environment';
 import { auth, db } from '../firebase';
@@ -27,16 +27,16 @@ export function FirebaseProvider({ children }) {
         const ref = doc(db, 'user', u.uid);
         const snap = await getDoc(ref);
         const userEmail = (u.email || '').toLowerCase();
-        
+
         // Define role based on email or existing database role
         const isDefaultAdmin = userEmail === appConfig.superAdminEmail.toLowerCase();
-        
+
         // Check if user already has a role in database (preserve existing roles)
         let existingRole = null;
         if (snap.exists()) {
           existingRole = snap.data().role;
         }
-        
+
         // If user already has head or admin role, preserve it
         // Otherwise, assign based on email rules
         const headEmails = [
@@ -45,10 +45,10 @@ export function FirebaseProvider({ children }) {
           'head1@testify.com'
         ];
         const isHead = headEmails.includes(userEmail);
-        
+
         // Determine final role
         let assignedRole = 'candidate'; // default
-        
+
         // Preserve existing head/admin roles unless overridden by email rules
         if (existingRole === 'head' && !isDefaultAdmin) {
           assignedRole = 'head'; // Keep existing head role
@@ -61,7 +61,7 @@ export function FirebaseProvider({ children }) {
         } else if (existingRole) {
           assignedRole = existingRole; // Keep any other existing role
         }
-        
+
         Logger.debug('User role assignment', {
           email: u.email,
           existingRole,
@@ -89,15 +89,15 @@ export function FirebaseProvider({ children }) {
               toRole: assignedRole
             });
             try {
-              await updateDoc(ref, { 
+              await updateDoc(ref, {
                 role: assignedRole,
-                lastLogin: serverTimestamp() 
+                lastLogin: serverTimestamp()
               });
             } catch (updateError) {
               Logger.error('Role update failed', null, updateError);
             }
           }
-          
+
           // Real-time subscription & repair
           const unsubDoc = onSnapshot(ref, async (docSnap) => {
             if (!docSnap.exists()) {return;}
@@ -161,7 +161,7 @@ window.setUserRole = async (role) => {
       Logger.warn('No user logged in for role update');
       return;
     }
-    
+
     const ref = doc(db, 'user', user.uid);
     await updateDoc(ref, { role: role });
     Logger.info('Role updated successfully', { role });
@@ -177,7 +177,7 @@ window.blockUser = async (blocked = true) => {
       Logger.warn('No user logged in for block status update');
       return;
     }
-    
+
     const ref = doc(db, 'user', user.uid);
     await updateDoc(ref, { blocked: blocked });
     Logger.info('User block status updated', { blocked });

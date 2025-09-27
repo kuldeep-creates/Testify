@@ -1,6 +1,6 @@
 // Firebase configuration and initialization
 import { initializeApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
+import { getAuth, applyActionCode } from 'firebase/auth';
 import { getFirestore, enableNetwork, disableNetwork } from 'firebase/firestore';
 
 import { firebaseConfig } from './config/environment';
@@ -9,6 +9,9 @@ const app = initializeApp(firebaseConfig);
 
 export const auth = getAuth(app);
 export const db = getFirestore(app);
+
+// Export Firebase Auth functions
+export { applyActionCode };
 
 // Connection management functions
 export const enableFirestoreNetwork = () => enableNetwork(db);
