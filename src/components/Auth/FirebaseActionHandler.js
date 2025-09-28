@@ -34,39 +34,78 @@ export default function FirebaseActionHandler() {
             // Handle email verification for existing users
             await applyActionCode(auth, oobCode);
             
-            // Update the emailVerified status in Firestore
-            const updateEmailVerificationStatus = () => {
-              return new Promise((resolve) => {
-                const unsubscribe = onAuthStateChanged(auth, async (user) => {
-                  if (user && user.emailVerified) {
-                    try {
-                      const userRef = doc(db, 'user', user.uid);
-                      await updateDoc(userRef, {
-                        emailVerified: true,
-                        emailVerifiedAt: serverTimestamp()
-                      });
-                      Logger.info('Email verification status updated in database', {
-                        uid: user.uid,
-                        email: user.email
-                      });
-                    } catch (error) {
-                      Logger.error('Failed to update email verification status', {
-                        uid: user.uid,
-                        email: user.email,
-                        error: error.message
-                      });
-                    }
-                    unsubscribe();
-                    resolve();
-                  }
+            // Try multiple approaches to update database
+            let databaseUpdated = false;
+            
+            // Approach 1: Try with current user
+            const currentUser = auth.currentUser;
+            if (currentUser) {
+              try {
+                await currentUser.reload();
+                const userRef = doc(db, 'user', currentUser.uid);
+                await updateDoc(userRef, {
+                  emailVerified: true,
+                  emailVerifiedAt: serverTimestamp()
                 });
-              });
-            };
+                
+                Logger.info('Database updated via current user', {
+                  uid: currentUser.uid,
+                  email: currentUser.email
+                });
+                databaseUpdated = true;
+              } catch (error) {
+                Logger.warn('Failed to update via current user', error);
+              }
+            }
             
-            // Wait for auth state to update, then update database
-            await updateEmailVerificationStatus();
+            // Approach 2: If no current user, try to find user by email from the action code
+            if (!databaseUpdated) {
+              try {
+                // Wait for auth state change after applyActionCode
+                await new Promise((resolve) => {
+                  const unsubscribe = onAuthStateChanged(auth, async (user) => {
+                    if (user) {
+                      try {
+                        await user.reload();
+                        if (user.emailVerified) {
+                          const userRef = doc(db, 'user', user.uid);
+                          await updateDoc(userRef, {
+                            emailVerified: true,
+                            emailVerifiedAt: serverTimestamp()
+                          });
+                          
+                          Logger.info('Database updated via auth state change', {
+                            uid: user.uid,
+                            email: user.email
+                          });
+                          databaseUpdated = true;
+                        }
+                      } catch (error) {
+                        Logger.warn('Failed to update via auth state', error);
+                      }
+                      unsubscribe();
+                      resolve();
+                    } else {
+                      unsubscribe();
+                      resolve();
+                    }
+                  });
+                  
+                  // Timeout after 5 seconds
+                  setTimeout(() => resolve(), 5000);
+                });
+              } catch (error) {
+                Logger.warn('Auth state change approach failed', error);
+              }
+            }
             
-            showSuccess('Email verified successfully! You can now sign in.');
+            if (databaseUpdated) {
+              showSuccess('Email verified successfully! You can now sign in.');
+            } else {
+              showSuccess('Email verified! If you still can\'t login, please contact support.');
+              Logger.error('Failed to update database after email verification');
+            }
+            
             navigate('/login?verified=true');
             break;
 

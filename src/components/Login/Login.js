@@ -80,20 +80,11 @@ function Login() {
       try {
         const userDocRef = doc(db, 'user', user.uid);
         const userDocSnap = await getDoc(userDocRef);
-        
+
         if (userDocSnap.exists()) {
           const userData = userDocSnap.data();
           const isEmailVerified = userData.emailVerified === true;
-          
-          // Debug logging
-          console.log('🔍 DEBUG - User verification check:', {
-            uid: user.uid,
-            email: normalizedEmail,
-            emailVerifiedFromDB: userData.emailVerified,
-            isEmailVerified: isEmailVerified,
-            userData: userData
-          });
-          
+
           if (!isEmailVerified) {
             // Sign out user if email not verified
             await auth.signOut();
@@ -105,7 +96,7 @@ function Login() {
             });
             return;
           }
-          
+
           Logger.info('Login successful - email verified', {
             email: normalizedEmail,
             uid: user.uid,

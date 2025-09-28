@@ -636,10 +636,11 @@
   inset: 0;
   background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
   z-index: 1000;
-  /* Prevent page scrolling and center content */
+  /* Allow scrolling on mobile */
   display: grid;
   place-items: center;
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .instructions-container {
@@ -1006,14 +1007,96 @@
 
 /* Responsive design for instructions */
 @media (max-width: 768px) {
-  .instructions-container { padding: 0.5rem; gap: 0.5rem; }
-  .instructions-header { margin: 0.5rem; padding: 0.875rem 1rem; text-align: center; }
+  .instructions-overlay {
+    place-items: start center;
+    padding: 1rem 0;
+  }
+  
+  .instructions-container { 
+    height: auto;
+    min-height: 100vh;
+    padding: 0.5rem; 
+    gap: 0.5rem; 
+    display: flex;
+    flex-direction: column;
+  }
+  
+  .instructions-header { 
+    margin: 0; 
+    padding: 0.875rem 1rem; 
+    text-align: center; 
+  }
+  
   .instructions-header h1 { font-size: 1.25rem; }
   .test-info h2 { font-size: 1.125rem; }
-  .instructions-content { margin: 0; padding: 0.75rem; grid-template-columns: 1fr; gap: 0.75rem; }
+  
+  .instructions-content { 
+    margin: 0; 
+    padding: 0.75rem; 
+    grid-template-columns: 1fr; 
+    gap: 0.75rem;
+    flex: 1;
+    overflow-y: auto;
+  }
+  
   .instruction-card .card-header { padding: 0.75rem; }
   .instruction-card .card-body { padding: 0.75rem; }
   .test-details { grid-template-columns: 1fr 1fr; padding: 0.5rem; }
   .detail-label, .detail-value { font-size: 0.85rem; }
-  .instructions-footer { margin: 0; padding: 0.75rem; }
+  
+  .instructions-footer { 
+    margin: 0; 
+    padding: 0.75rem;
+    position: sticky;
+    bottom: 0;
+  }
+}
+
+/* Extra small mobile devices */
+@media (max-width: 480px) {
+  .instructions-overlay {
+    padding: 0.5rem 0;
+  }
+  
+  .instructions-container {
+    padding: 0.25rem;
+  }
+  
+  .instructions-header {
+    padding: 0.75rem;
+  }
+  
+  .instructions-header h1 {
+    font-size: 1.1rem;
+  }
+  
+  .test-info h2 {
+    font-size: 1rem;
+  }
+  
+  .instructions-content {
+    padding: 0.5rem;
+    gap: 0.5rem;
+  }
+  
+  .instruction-card .card-header,
+  .instruction-card .card-body {
+    padding: 0.5rem;
+  }
+  
+  .rules-list li,
+  .tips-list li {
+    padding: 0.4rem 0.5rem;
+    font-size: 0.8rem;
+  }
+  
+  .detail-label,
+  .detail-value {
+    font-size: 0.8rem;
+  }
+  
+  .start-test-btn {
+    padding: 0.875rem 1rem;
+    font-size: 0.95rem;
+  }
 }
