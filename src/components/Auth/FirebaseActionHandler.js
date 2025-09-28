@@ -1,10 +1,10 @@
+import { applyActionCode, onAuthStateChanged } from 'firebase/auth';
+import { doc, getDoc, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
 import { useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { applyActionCode, onAuthStateChanged, createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
-import { doc, updateDoc, getDoc, setDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from '../../firebase';
-import { showError, showSuccess } from '../../utils/notifications';
 import Logger from '../../utils/logger';
+import { showError, showSuccess } from '../../utils/notifications';
 import './FirebaseActionHandler.css';
 
 /**
@@ -33,79 +33,145 @@ export default function FirebaseActionHandler() {
           case 'verifyEmail':
             // Handle email verification for existing users
             await applyActionCode(auth, oobCode);
-            
-            // Try multiple approaches to update database
+
+            // Wait for auth state to update after verification
             let databaseUpdated = false;
-            
-            // Approach 1: Try with current user
-            const currentUser = auth.currentUser;
-            if (currentUser) {
-              try {
-                await currentUser.reload();
-                const userRef = doc(db, 'user', currentUser.uid);
-                await updateDoc(userRef, {
-                  emailVerified: true,
-                  emailVerifiedAt: serverTimestamp()
-                });
-                
-                Logger.info('Database updated via current user', {
-                  uid: currentUser.uid,
-                  email: currentUser.email
-                });
-                databaseUpdated = true;
-              } catch (error) {
-                Logger.warn('Failed to update via current user', error);
-              }
-            }
-            
-            // Approach 2: If no current user, try to find user by email from the action code
-            if (!databaseUpdated) {
-              try {
-                // Wait for auth state change after applyActionCode
-                await new Promise((resolve) => {
-                  const unsubscribe = onAuthStateChanged(auth, async (user) => {
-                    if (user) {
-                      try {
-                        await user.reload();
-                        if (user.emailVerified) {
-                          const userRef = doc(db, 'user', user.uid);
-                          await updateDoc(userRef, {
-                            emailVerified: true,
-                            emailVerifiedAt: serverTimestamp()
-                          });
-                          
-                          Logger.info('Database updated via auth state change', {
-                            uid: user.uid,
-                            email: user.email
-                          });
-                          databaseUpdated = true;
-                        }
-                      } catch (error) {
-                        Logger.warn('Failed to update via auth state', error);
+            let verifiedUser = null;
+
+            try {
+              // Wait for auth state change after applyActionCode
+              await new Promise((resolve) => {
+                const unsubscribe = onAuthStateChanged(auth, async (user) => {
+                  if (user) {
+                    try {
+                      await user.reload();
+                      if (user.emailVerified) {
+                        verifiedUser = user;
+                        databaseUpdated = true;
                       }
-                      unsubscribe();
-                      resolve();
-                    } else {
-                      unsubscribe();
-                      resolve();
+                    } catch (error) {
+                      Logger.warn('Failed to reload user after verification', error);
                     }
-                  });
-                  
-                  // Timeout after 5 seconds
-                  setTimeout(() => resolve(), 5000);
+                    unsubscribe();
+                    resolve();
+                  } else {
+                    unsubscribe();
+                    resolve();
+                  }
                 });
-              } catch (error) {
-                Logger.warn('Auth state change approach failed', error);
+
+                // Timeout after 10 seconds
+                setTimeout(() => resolve(), 10000);
+              });
+
+              // Update database if we have a verified user
+              if (verifiedUser && databaseUpdated) {
+                try {
+                  const userRef = doc(db, 'user', verifiedUser.uid);
+
+                  // Check if user document exists first
+                  const userDocSnap = await getDoc(userRef);
+
+                  if (userDocSnap.exists()) {
+                    // Update existing user document
+                    await updateDoc(userRef, {
+                      emailVerified: true,
+                      emailVerifiedAt: serverTimestamp()
+                    });
+                    Logger.info('Database updated after email verification', {
+                      uid: verifiedUser.uid,
+                      email: verifiedUser.email
+                    });
+
+                    // Set verification flag to true in sessionStorage
+                    sessionStorage.setItem('userVerified', 'true');
+                    Logger.info('Verification flag set to true', {
+                      uid: verifiedUser.uid,
+                      email: verifiedUser.email
+                    });
+                  } else {
+                    // Check for pending user data in sessionStorage
+                    let userData = null;
+                    try {
+                      const pendingData = sessionStorage.getItem('pendingUserData');
+                      if (pendingData) {
+                        userData = JSON.parse(pendingData);
+                        // Clear the pending data
+                        sessionStorage.removeItem('pendingUserData');
+                      }
+                    } catch (parseError) {
+                      Logger.warn('Failed to parse pending user data', parseError);
+                    }
+
+                    // Create user document with stored data or defaults
+                    const userDocData = userData ? {
+                      userId: verifiedUser.uid,
+                      name: userData.name || verifiedUser.displayName || '',
+                      email: verifiedUser.email || '',
+                      role: userData.role || 'candidate',
+                      blocked: userData.blocked || false,
+                      domain: userData.domain || 'Full Stack',
+                      emailVerified: true,
+                      emailVerifiedAt: serverTimestamp(),
+                      createdAt: serverTimestamp(),
+                      lastLogin: serverTimestamp(),
+                    } : {
+                      userId: verifiedUser.uid,
+                      name: verifiedUser.displayName || '',
+                      email: verifiedUser.email || '',
+                      role: 'candidate',
+                      blocked: false,
+                      domain: 'Full Stack',
+                      emailVerified: true,
+                      emailVerifiedAt: serverTimestamp(),
+                      createdAt: serverTimestamp(),
+                      lastLogin: serverTimestamp(),
+                    };
+
+                    await setDoc(userRef, userDocData, { merge: true });
+                    Logger.info('User document created after email verification', {
+                      uid: verifiedUser.uid,
+                      email: verifiedUser.email,
+                      hasStoredData: !!userData,
+                      documentPath: `user/${verifiedUser.uid}`
+                    });
+
+                    // Set verification flag to true in sessionStorage
+                    sessionStorage.setItem('userVerified', 'true');
+                    Logger.info('Verification flag set to true', {
+                      uid: verifiedUser.uid,
+                      email: verifiedUser.email
+                    });
+
+                    // Verify the document was created successfully
+                    const verifyDocSnap = await getDoc(userRef);
+                    if (verifyDocSnap.exists()) {
+                      Logger.info('User document verified after creation', {
+                        uid: verifiedUser.uid,
+                        documentData: verifyDocSnap.data()
+                      });
+                    } else {
+                      Logger.error('User document creation failed - document not found after creation', {
+                        uid: verifiedUser.uid
+                      });
+                    }
+                  }
+                } catch (dbError) {
+                  Logger.error('Failed to update database after verification', null, dbError);
+                  // Still show success to user as verification worked
+                }
               }
+            } catch (error) {
+              Logger.error('Error during email verification process', null, error);
             }
-            
+
             if (databaseUpdated) {
               showSuccess('Email verified successfully! You can now sign in.');
             } else {
               showSuccess('Email verified! If you still can\'t login, please contact support.');
-              Logger.error('Failed to update database after email verification');
+              Logger.error('Failed to complete email verification process');
             }
-            
+
             navigate('/login?verified=true');
             break;
 

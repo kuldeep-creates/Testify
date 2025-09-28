@@ -1,5 +1,5 @@
 import { onAuthStateChanged } from 'firebase/auth';
-import { doc, getDoc, onSnapshot, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, onSnapshot, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 
 import { appConfig } from '../config/environment';
@@ -23,13 +23,35 @@ export function FirebaseProvider({ children }) {
         setLoading(false);
         return;
       }
-      
-      // Email verification is optional - allow all users to access the app
-      
+
+      // Handle email verification status sync
       try {
         const ref = doc(db, 'user', u.uid);
         const snap = await getDoc(ref);
         const userEmail = (u.email || '').toLowerCase();
+
+        // Sync email verification status between Firebase Auth and Firestore
+        if (snap.exists()) {
+          const userData = snap.data();
+          const dbEmailVerified = userData.emailVerified === true;
+          const authEmailVerified = u.emailVerified;
+
+          // If Firebase Auth says verified but database doesn't, update database
+          if (authEmailVerified && !dbEmailVerified) {
+            try {
+              await updateDoc(ref, {
+                emailVerified: true,
+                emailVerifiedAt: serverTimestamp()
+              });
+              Logger.info('Email verification status synced in context', {
+                uid: u.uid,
+                email: u.email
+              });
+            } catch (syncError) {
+              Logger.error('Failed to sync email verification in context', null, syncError);
+            }
+          }
+        }
 
         // Define role based on email or existing database role
         const isDefaultAdmin = userEmail === appConfig.superAdminEmail.toLowerCase();
@@ -71,18 +93,15 @@ export function FirebaseProvider({ children }) {
           assignedRole
         });
         if (!snap.exists()) {
-          await setDoc(ref, {
-            userId: u.uid,
-            name: u.displayName || '',
-            email: u.email || '',
-            role: assignedRole,
-            blocked: false,
-            domain: 'Full Stack',
-            emailVerified: u.emailVerified,
-            createdAt: serverTimestamp(),
-            lastLogin: serverTimestamp(),
-          }, { merge: true });
-          setUserDoc({ userId: u.uid, name: u.displayName || '', email: u.email || '', role: assignedRole, blocked: false, domain: 'Full Stack', emailVerified: u.emailVerified });
+          // User document doesn't exist - this means user hasn't verified their email
+          // Don't create document here, let FirebaseActionHandler handle it after verification
+          Logger.warn('User document not found - user needs to verify email first', {
+            uid: u.uid,
+            email: u.email,
+            emailVerified: u.emailVerified
+          });
+          setUserDoc(null);
+          setLoading(false);
         } else {
           // Check if existing user has wrong role and fix it
           const existingData = snap.data();
@@ -102,7 +121,7 @@ export function FirebaseProvider({ children }) {
               Logger.error('Role update failed', null, updateError);
             }
           }
-          
+
           // Always sync emailVerified status if it differs
           if (existingData.emailVerified !== u.emailVerified) {
             try {
@@ -130,16 +149,19 @@ export function FirebaseProvider({ children }) {
             if (typeof data.blocked !== 'boolean') {repair.blocked = false;}
             if (!data.role) {repair.role = assignedRole;}
             if (!data.domain) {repair.domain = 'Full Stack';}
+
+            // Always sync email verification status
             if (typeof data.emailVerified !== 'boolean' || data.emailVerified !== u.emailVerified) {
               repair.emailVerified = u.emailVerified;
               if (u.emailVerified && !data.emailVerifiedAt) {
                 repair.emailVerifiedAt = serverTimestamp();
               }
             }
+
             setUserDoc({ ...data, ...repair });
             if (Object.keys(repair).length > 0) {
-              try { 
-                await updateDoc(ref, { ...repair, lastLogin: serverTimestamp() }); 
+              try {
+                await updateDoc(ref, { ...repair, lastLogin: serverTimestamp() });
                 Logger.debug('User document repaired', { uid: u.uid, repairs: Object.keys(repair) });
               } catch (repairError) {
                 Logger.error('Document repair failed', null, repairError);

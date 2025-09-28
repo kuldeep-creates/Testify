@@ -1,5 +1,5 @@
 import { sendPasswordResetEmail, signInWithEmailAndPassword } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 
@@ -7,6 +7,27 @@ import { auth, db } from '../../firebase';
 import Logger from '../../utils/logger';
 import { showError, showSuccess } from '../../utils/notifications';
 import './Login.css';
+
+// Debug function to check user document status
+window.debugUserDocument = async (uid) => {
+  try {
+    const { doc, getDoc } = await import('firebase/firestore');
+    const userDocRef = doc(db, 'user', uid);
+    const userDocSnap = await getDoc(userDocRef);
+
+    console.log('🔍 User Document Debug:', {
+      uid,
+      exists: userDocSnap.exists(),
+      data: userDocSnap.exists() ? userDocSnap.data() : null,
+      path: `user/${uid}`
+    });
+
+    return userDocSnap.exists() ? userDocSnap.data() : null;
+  } catch (error) {
+    console.error('❌ Debug error:', error);
+    return null;
+  }
+};
 
 function Login() {
   const navigate = useNavigate();
@@ -76,49 +97,77 @@ function Login() {
       const userCredential = await signInWithEmailAndPassword(auth, normalizedEmail, password);
       const user = userCredential.user;
 
-      // Check email verification status from database
+      // Simple verification check using sessionStorage flag
+      const isUserVerified = sessionStorage.getItem('userVerified') === 'true';
+
+      Logger.debug('Login attempt - checking verification status', {
+        email: normalizedEmail,
+        uid: user.uid,
+        emailVerified: user.emailVerified,
+        sessionVerified: isUserVerified
+      });
+
+      if (!isUserVerified) {
+        // User hasn't verified their email
+        await auth.signOut();
+        setError('Please verify your email before signing in. Check your inbox and spam folder for the verification link.');
+        Logger.warn('Login blocked - user not verified', {
+          email: normalizedEmail,
+          uid: user.uid,
+          emailVerified: user.emailVerified,
+          sessionVerified: isUserVerified
+        });
+        return;
+      }
+
+      // User is verified - create or update user document
       try {
         const userDocRef = doc(db, 'user', user.uid);
         const userDocSnap = await getDoc(userDocRef);
 
         if (userDocSnap.exists()) {
-          const userData = userDocSnap.data();
-          const isEmailVerified = userData.emailVerified === true;
-
-          if (!isEmailVerified) {
-            // Sign out user if email not verified
-            await auth.signOut();
-            setError('Please verify your email before signing in. Check your inbox and spam folder.');
-            Logger.warn('Login blocked - email not verified', {
-              email: normalizedEmail,
-              uid: user.uid,
-              emailVerified: userData.emailVerified
-            });
-            return;
-          }
-
-          Logger.info('Login successful - email verified', {
-            email: normalizedEmail,
-            uid: user.uid,
-            emailVerified: isEmailVerified
+          // Update existing user document
+          await updateDoc(userDocRef, {
+            emailVerified: true,
+            emailVerifiedAt: serverTimestamp(),
+            lastLogin: serverTimestamp()
           });
-        } else {
-          // User document doesn't exist
-          await auth.signOut();
-          setError('User profile not found. Please contact support.');
-          Logger.error('User document not found during login', {
+          Logger.info('User document updated during login', {
             email: normalizedEmail,
             uid: user.uid
           });
-          return;
+        } else {
+          // Create new user document
+          const { setDoc } = await import('firebase/firestore');
+          await setDoc(userDocRef, {
+            userId: user.uid,
+            name: user.displayName || '',
+            email: user.email || '',
+            role: 'candidate',
+            blocked: false,
+            domain: 'Full Stack',
+            emailVerified: true,
+            emailVerifiedAt: serverTimestamp(),
+            createdAt: serverTimestamp(),
+            lastLogin: serverTimestamp(),
+          }, { merge: true });
+          Logger.info('User document created during login', {
+            email: normalizedEmail,
+            uid: user.uid
+          });
         }
       } catch (dbError) {
-        Logger.error('Error checking user verification status', {
+        Logger.error('Error creating/updating user document', {
           error: dbError.message,
           uid: user.uid
         });
-        // Allow login if database check fails (fallback)
+        // Continue with login even if document creation fails
       }
+
+      Logger.info('Login successful - user verified', {
+        email: normalizedEmail,
+        uid: user.uid
+      });
 
       setSuccess('Login successful! Redirecting...');
 

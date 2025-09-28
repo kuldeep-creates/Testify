@@ -1,10 +1,9 @@
 import { sendEmailVerification } from 'firebase/auth';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 
 import '../../components/Loading/Loading.css';
-import { auth, db } from '../../firebase';
+import { auth } from '../../firebase';
 import Logger from '../../utils/logger';
 import { showError, showSuccess } from '../../utils/notifications';
 import './Register.css';
@@ -48,12 +47,12 @@ function Register() {
       const { createUserWithEmailAndPassword, updateProfile } = await import('firebase/auth');
       const userCredential = await createUserWithEmailAndPassword(auth, email, userData.password);
       const user = userCredential.user;
-      
+
       // Update user's display name
       await updateProfile(user, { displayName: userData.name });
-      
-      // Create user document in Firestore (marked as unverified)
-      await setDoc(doc(db, 'user', user.uid), {
+
+      // Store user data temporarily in sessionStorage for after verification
+      const tempUserData = {
         userId: user.uid,
         name: userData.name,
         email: email,
@@ -61,33 +60,38 @@ function Register() {
         blocked: false,
         domain: 'Full Stack',
         emailVerified: false,
-        createdAt: serverTimestamp(),
-        lastLogin: serverTimestamp(),
-      }, { merge: true });
-      
+        password: userData.password // Store temporarily for verification
+      };
+
+      // Store in sessionStorage for retrieval after verification
+      sessionStorage.setItem('pendingUserData', JSON.stringify(tempUserData));
+
+      // Set verification flag to false
+      sessionStorage.setItem('userVerified', 'false');
+
       // Send verification email
       await sendEmailVerification(user);
-      
-      // Sign out the user immediately - they must verify email first
+
+      // Sign out user immediately - they must verify email first
       await auth.signOut();
-      
+
       setVerificationEmailSent(true);
-      showSuccess(`Verification email sent to ${email}. Please check your inbox and spam folder.`);
-      
+      showSuccess(`Verification email sent to ${email}. Please check your inbox and spam folder, then click the verification link to complete your registration.`);
+
       Logger.info('Account created and verification email sent', {
         email: email,
         uid: user.uid
       });
-      
+
     } catch (error) {
       Logger.error('Error during registration process', {
         errorCode: error.code,
         errorMessage: error.message,
         email: email
       });
-      
+
       let errorMessage = 'Failed to create account. Please try again later.';
-      
+
       switch (error.code) {
         case 'auth/email-already-in-use':
           errorMessage = 'This email is already registered. Please sign in instead.';
@@ -110,7 +114,7 @@ function Register() {
           }
           break;
       }
-      
+
       showError(errorMessage);
       setEmailSendFailed(true);
     }
@@ -185,17 +189,17 @@ function Register() {
     setLoading(true);
     try {
       const normalizedEmail = email.trim();
-      
+
       // Store user data and send verification email (no account created yet)
       const userData = {
         name: name,
         password: password
       };
-      
+
       await sendVerificationEmailForPendingUser(normalizedEmail, userData);
-      
+
       // Show verification required message
-      setSuccess('Registration initiated! Please check your email and click the verification link to create your account.');
+      setSuccess('Registration initiated! Please check your email and click the verification link to complete your account setup.');
       setUserEmail(normalizedEmail);
       setShowConfirmationCard(true);
     } catch (err) {
