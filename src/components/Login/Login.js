@@ -29,6 +29,29 @@ window.debugUserDocument = async (uid) => {
   }
 };
 
+// Debug function to check verification status
+window.debugVerificationStatus = () => {
+  console.log('🔍 Verification Status Debug:', {
+    userVerified: sessionStorage.getItem('userVerified'),
+    pendingUserData: sessionStorage.getItem('pendingUserData'),
+    allSessionStorage: Object.keys(sessionStorage).reduce((acc, key) => {
+      acc[key] = sessionStorage.getItem(key);
+      return acc;
+    }, {})
+  });
+
+  return {
+    userVerified: sessionStorage.getItem('userVerified'),
+    pendingUserData: sessionStorage.getItem('pendingUserData')
+  };
+};
+
+// Debug function to manually set verification flag
+window.setVerificationFlag = (value) => {
+  sessionStorage.setItem('userVerified', value ? 'true' : 'false');
+  console.log('✅ Verification flag set to:', value);
+};
+
 function Login() {
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
@@ -99,15 +122,35 @@ function Login() {
 
       // Simple verification check using sessionStorage flag
       const isUserVerified = sessionStorage.getItem('userVerified') === 'true';
+      const verificationFlag = sessionStorage.getItem('userVerified');
+
+      // Debug: Log all sessionStorage items
+      console.log('🔍 SessionStorage Debug:', {
+        userVerified: verificationFlag,
+        isUserVerified: isUserVerified,
+        allKeys: Object.keys(sessionStorage),
+        pendingUserData: sessionStorage.getItem('pendingUserData')
+      });
 
       Logger.debug('Login attempt - checking verification status', {
         email: normalizedEmail,
         uid: user.uid,
         emailVerified: user.emailVerified,
-        sessionVerified: isUserVerified
+        sessionVerified: isUserVerified,
+        verificationFlag: verificationFlag
       });
 
-      if (!isUserVerified) {
+      // If user is verified in Firebase Auth, allow login regardless of sessionStorage flag
+      if (user.emailVerified) {
+        Logger.info('User verified in Firebase Auth - allowing login', {
+          email: normalizedEmail,
+          uid: user.uid,
+          emailVerified: user.emailVerified
+        });
+
+        // Set the verification flag for future logins
+        sessionStorage.setItem('userVerified', 'true');
+      } else if (!isUserVerified) {
         // User hasn't verified their email
         await auth.signOut();
         setError('Please verify your email before signing in. Check your inbox and spam folder for the verification link.');
