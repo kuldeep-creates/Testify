@@ -16,39 +16,6 @@ function Dashboard() {
   const role = (userDoc?.role || 'candidate').toLowerCase();
 
   useEffect(() => {
-<<<<<<< HEAD
-<<<<<<< HEAD
-<<<<<<< HEAD
-    // Check for email verification success
-    const params = new URLSearchParams(location.search);
-    if (params.get('verified') === 'true') {
-      const roleParam = params.get('role');
-      if (roleParam === 'candidate') {
-        showSuccess('🎉 Welcome to Testify! Your email has been verified successfully. You can now start taking tests as a candidate.');
-      } else {
-        showSuccess('🎉 Welcome to Testify! Your email has been verified successfully. You can now access all features.');
-      }
-      // Clean up the URL
-      window.history.replaceState({}, document.title, location.pathname);
-    }
-
-    // Check for redirect URL from query parameters for already logged-in users
-    if (user && !loading) {
-      const params = new URLSearchParams(location.search);
-      const redirectUrl = params.get('redirect');
-      if (redirectUrl) {
-        navigate(redirectUrl);
-      }
-    }
-  }, [location, user, loading, navigate]);
-
-  useEffect(() => {
-=======
->>>>>>> parent of 9b6885b (reset password and conformation mail)
-=======
->>>>>>> parent of 9b6885b (reset password and conformation mail)
-=======
->>>>>>> parent of 9b6885b (reset password and conformation mail)
     // If not loading and no user, redirect to login
     if (!loading && !user) {
       navigate('/login');

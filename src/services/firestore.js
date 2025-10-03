@@ -4,18 +4,54 @@ import { db } from '../firebase';
 
 // Tests
 export async function fetchTestWithQuestions(testId) {
-  const testRef = doc(db, 'tests', testId);
-  const testSnap = await getDoc(testRef);
-  if (!testSnap.exists()) {return null;}
-  const qSnap = await getDocs(collection(testRef, 'questions'));
-  const questions = qSnap.docs.map(d => {
-    const questionData = d.data();
-    return { 
-      id: questionData.questionId || d.id, // Use questionId from data, fallback to doc id
-      ...questionData 
-    };
-  });
-  return { id: testSnap.id, ...testSnap.data(), questions };
+  try {
+    console.log('[Firestore] Fetching test:', testId);
+    
+    if (!testId) {
+      throw new Error('Test ID is required');
+    }
+    
+    const testRef = doc(db, 'tests', testId);
+    const testSnap = await getDoc(testRef);
+    
+    console.log('[Firestore] Test document exists:', testSnap.exists());
+    
+    if (!testSnap.exists()) {
+      console.error('[Firestore] Test not found:', testId);
+      return null;
+    }
+    
+    const testData = testSnap.data();
+    console.log('[Firestore] Test data:', { 
+      id: testSnap.id, 
+      title: testData?.title,
+      hasPassword: !!testData?.password 
+    });
+    
+    const qSnap = await getDocs(collection(testRef, 'questions'));
+    console.log('[Firestore] Questions fetched:', qSnap.docs.length);
+    
+    const questions = qSnap.docs.map(d => {
+      const questionData = d.data();
+      return { 
+        id: questionData.questionId || d.id, // Use questionId from data, fallback to doc id
+        ...questionData 
+      };
+    });
+    
+    const result = { id: testSnap.id, ...testData, questions };
+    console.log('[Firestore] Returning test with questions:', questions.length);
+    
+    return result;
+  } catch (error) {
+    console.error('[Firestore] Error fetching test:', error);
+    console.error('[Firestore] Error details:', {
+      code: error.code,
+      message: error.message,
+      testId
+    });
+    throw error;
+  }
 }
 
 // Paste logs

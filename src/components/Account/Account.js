@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 
 import { useFirebase } from '../../context/FirebaseContext';
 import { db } from '../../firebase';
+import './Account.css';
 
 function Account() {
   const navigate = useNavigate();
@@ -90,30 +91,34 @@ function Account() {
 
   if (loading) {
     return (
-      <div style={{ padding: 24 }}>
-        Loading account...
+      <div className="account-loading">
+        <div className="loading-content">
+          <div className="loading-spinner" />
+          <div className="loading-text">Loading account...</div>
+        </div>
       </div>
     );
   }
 
   return (
-    <div style={{ padding: 24, maxWidth: 720, margin: '0 auto' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-        <div>
-          <h2 style={{ margin: 0 }}>My Account</h2>
-          <div style={{ color: '#6b7280' }}>Update your profile information</div>
-          
+    <div className="account-container">
+      <div className="account-header">
+        <div className="account-header-content">
+          <h2 className="account-title">My Account</h2>
+          <p className="account-subtitle">Update your profile information</p>
         </div>
-        <button className="btn btn-outline" onClick={() => navigate('/dashboard')}>Back</button>
-        
+        <button className="btn btn-outline" onClick={() => navigate('/dashboard')}>
+          Back to Dashboard
+        </button>
       </div>
 
-      {error && (
-        <div className="alert alert-error" style={{ marginBottom: 12 }}>{error}</div>
-      )}
-      {success && (
-        <div className="alert alert-success" style={{ marginBottom: 12 }}>{success}</div>
-      )}
+      <div className="account-card">
+        {error && (
+          <div className="alert alert-error">{error}</div>
+        )}
+        {success && (
+          <div className="alert alert-success">{success}</div>
+        )}
 
       <div className="form-group">
         <label>Name</label>
@@ -140,7 +145,7 @@ function Account() {
         />
       </div>
 
-      <div className="form-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+      <div className="form-row">
         <div className="form-group">
           <label>Mobile</label>
           <input
@@ -157,6 +162,7 @@ function Account() {
             name="year"
             value={form.year}
             onChange={onChange}
+            className="form-input"
             placeholder="e.g., 3rd Year"
           />
         </div>
@@ -222,10 +228,11 @@ function Account() {
         </>
       )}
 
-      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
+      <div className="account-actions">
         <button className={`btn btn-primary ${saving ? 'btn-loading' : ''}`} onClick={save} disabled={saving}>
           {saving ? 'Saving...' : 'Save Changes'}
         </button>
+      </div>
       </div>
     </div>
   );

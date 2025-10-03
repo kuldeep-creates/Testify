@@ -1,6 +1,3 @@
-<<<<<<< HEAD
-<<<<<<< HEAD
-<<<<<<< HEAD
 /* Register Component Styles */
 
 /* Password Requirements Styles */
@@ -39,32 +36,7 @@
   color: #dc2626;
 }
 
-/* Resend Verification Styles */
-.resend-verification-container {
-  margin-top: 1rem;
-  padding: 1rem;
-  background: #fef3c7;
-  border: 1px solid #f59e0b;
-  border-radius: 0.5rem;
-  text-align: center;
-}
-
-.resend-verification-text {
-  margin: 0 0 0.75rem 0;
-  font-size: 0.875rem;
-  color: #92400e;
-  font-weight: 500;
-}
-
-=======
 /* Register Page Styles */
->>>>>>> parent of 9b6885b (reset password and conformation mail)
-=======
-/* Register Page Styles */
->>>>>>> parent of 9b6885b (reset password and conformation mail)
-=======
-/* Register Page Styles */
->>>>>>> parent of 9b6885b (reset password and conformation mail)
 .register-container {
   min-height: 100vh;
   background: linear-gradient(135deg, #f8fafc 0%, #e0f2fe 50%, #e0e7ff 100%);

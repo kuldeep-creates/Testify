@@ -1,40 +1,10 @@
-<<<<<<< HEAD
-<<<<<<< HEAD
-<<<<<<< HEAD
-import { sendEmailVerification } from 'firebase/auth';
-import { useEffect, useState } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
-=======
-=======
->>>>>>> parent of 9b6885b (reset password and conformation mail)
-=======
->>>>>>> parent of 9b6885b (reset password and conformation mail)
 import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-<<<<<<< HEAD
-<<<<<<< HEAD
->>>>>>> parent of 9b6885b (reset password and conformation mail)
-
-=======
 
 import { auth, db } from '../../firebase';
 import Logger from '../../utils/logger';
->>>>>>> parent of 9b6885b (reset password and conformation mail)
-=======
-
-import { auth, db } from '../../firebase';
-import Logger from '../../utils/logger';
->>>>>>> parent of 9b6885b (reset password and conformation mail)
-import '../../components/Loading/Loading.css';
-import { auth } from '../../firebase';
-import Logger from '../../utils/logger';
-<<<<<<< HEAD
-import { showError, showSuccess } from '../../utils/notifications';
-=======
-import '../../components/Loading/Loading.css';
->>>>>>> parent of 9b6885b (reset password and conformation mail)
 import './Register.css';
 
 function Register() {
@@ -53,120 +23,6 @@ function Register() {
     uppercase: false,
     number: false
   });
-  const [emailSendFailed, setEmailSendFailed] = useState(false);
-
-<<<<<<< HEAD
-<<<<<<< HEAD
-<<<<<<< HEAD
-  // Check for email verification redirect
-  const location = useLocation();
-  const [, setVerificationEmailSent] = useState(false);
-  const [showConfirmationCard, setShowConfirmationCard] = useState(false);
-  const [userEmail, setUserEmail] = useState('');
-
-  useEffect(() => {
-    // Check if we're returning from email verification
-    const params = new URLSearchParams(location.search);
-    if (params.get('mode') === 'verifyEmail') {
-      // Clean up the URL
-      window.history.replaceState({}, document.title, location.pathname);
-    }
-  }, [location]);
-
-  const sendVerificationEmailForPendingUser = async (email, userData) => {
-    try {
-      // Create the user account immediately but mark as unverified
-      const { createUserWithEmailAndPassword, updateProfile } = await import('firebase/auth');
-      const userCredential = await createUserWithEmailAndPassword(auth, email, userData.password);
-      const user = userCredential.user;
-
-      // Update user's display name
-      await updateProfile(user, { displayName: userData.name });
-
-      // Store user data temporarily in sessionStorage for after verification
-      const tempUserData = {
-        userId: user.uid,
-        name: userData.name,
-        email: email,
-        role: 'candidate',
-        blocked: false,
-        domain: 'Full Stack',
-        emailVerified: false,
-        password: userData.password // Store temporarily for verification
-      };
-
-      // Store in sessionStorage for retrieval after verification
-      sessionStorage.setItem('pendingUserData', JSON.stringify(tempUserData));
-
-      // Set verification flag to false
-      sessionStorage.setItem('userVerified', 'false');
-
-      // Send verification email
-      await sendEmailVerification(user);
-
-      // Sign out user immediately - they must verify email first
-      await auth.signOut();
-
-      setVerificationEmailSent(true);
-      showSuccess(`Verification email sent to ${email}. Please check your inbox and spam folder, then click the verification link to complete your registration.`);
-
-      Logger.info('Account created and verification email sent', {
-        email: email,
-        uid: user.uid
-      });
-
-    } catch (error) {
-      Logger.error('Error during registration process', {
-        errorCode: error.code,
-        errorMessage: error.message,
-        email: email
-      });
-
-      let errorMessage = 'Failed to create account. Please try again later.';
-
-      switch (error.code) {
-        case 'auth/email-already-in-use':
-          errorMessage = 'This email is already registered. Please sign in instead.';
-          break;
-        case 'auth/too-many-requests':
-          errorMessage = 'Too many attempts. Please wait a few minutes before trying again.';
-          break;
-        case 'auth/invalid-email':
-          errorMessage = 'Invalid email address. Please check your email and try again.';
-          break;
-        case 'auth/weak-password':
-          errorMessage = 'Password is too weak. Please choose a stronger password.';
-          break;
-        case 'auth/network-request-failed':
-          errorMessage = 'Network error. Please check your internet connection and try again.';
-          break;
-        default:
-          if (error.message && !error.message.includes('internal')) {
-            errorMessage = `Registration failed: ${error.message}`;
-          }
-          break;
-      }
-
-      showError(errorMessage);
-      setEmailSendFailed(true);
-    }
-  };
-  const handleResendVerification = async () => {
-    if (!email || !name || !password) return;
-
-    setEmailSendFailed(false);
-    setLoading(true);
-
-    try {
-      const userData = {
-        name: name,
-        password: password
-      };
-      await sendVerificationEmailForPendingUser(email.trim(), userData);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const validatePassword = (password) => {
     const errors = [];
@@ -199,13 +55,6 @@ function Register() {
     setPassword(newPassword);
     updatePasswordValidation(newPassword);
   };
-
-=======
->>>>>>> parent of 9b6885b (reset password and conformation mail)
-=======
->>>>>>> parent of 9b6885b (reset password and conformation mail)
-=======
->>>>>>> parent of 9b6885b (reset password and conformation mail)
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -227,21 +76,6 @@ function Register() {
     setLoading(true);
     try {
       const normalizedEmail = email.trim();
-<<<<<<< HEAD
-
-      // Store user data and send verification email (no account created yet)
-      const userData = {
-        name: name,
-        password: password
-      };
-
-      await sendVerificationEmailForPendingUser(normalizedEmail, userData);
-
-      // Show verification required message
-      setSuccess('Registration initiated! Please check your email and click the verification link to complete your account setup.');
-      setUserEmail(normalizedEmail);
-      setShowConfirmationCard(true);
-=======
       const cred = await createUserWithEmailAndPassword(auth, normalizedEmail, password);
       const uid = cred.user.uid;
       try {
@@ -264,13 +98,6 @@ function Register() {
       }
       setSuccess('Account created! Redirecting to dashboard...');
       setTimeout(() => navigate('/dashboard'), 800);
-<<<<<<< HEAD
-<<<<<<< HEAD
->>>>>>> parent of 9b6885b (reset password and conformation mail)
-=======
->>>>>>> parent of 9b6885b (reset password and conformation mail)
-=======
->>>>>>> parent of 9b6885b (reset password and conformation mail)
     } catch (err) {
       Logger.error('Registration failed', {
         errorCode: err.code,
@@ -287,79 +114,6 @@ function Register() {
     }
   };
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-<<<<<<< HEAD
-  // If confirmation card should be shown
-  if (showConfirmationCard) {
-    return (
-      <div className="register-container" role="main">
-        {/* Background Illustrations */}
-        <div className="register-background" />
-        <div className="register-background" />
-        <div className="register-background" />
-        <div className="register-background" />
-
-        {/* Confirmation Card */}
-        <div className="register-main">
-          <div className="confirmation-card">
-            <div className="confirmation-icon">
-              <svg className="confirmation-check" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            </div>
-
-            <h2 className="confirmation-title">Email Verification Required!</h2>
-            <p className="confirmation-message">
-              A verification email has been sent to <strong>{userEmail}</strong>
-            </p>
-
-            <div className="confirmation-steps">
-              <h3>Complete Your Registration:</h3>
-              <ol>
-                <li>Check your email inbox (and spam folder)</li>
-                <li>Click the verification link in the email</li>
-                <li>Return here and sign in with your credentials</li>
-              </ol>
-
-            </div>
-
-            <div className="confirmation-actions">
-              <button
-                className="btn btn-primary"
-                onClick={() => navigate('/login')}
-              >
-                Go to Login
-              </button>
-              <button
-                className="btn btn-secondary"
-                onClick={() => {
-                  setShowConfirmationCard(false);
-                  setEmail('');
-                  setPassword('');
-                  setConfirmPassword('');
-                  setName('');
-                }}
-              >
-                Register Another Account
-              </button>
-            </div>
-
-            <div className="confirmation-help">
-              <p>Didn't receive the email? Check your spam folder or contact support.</p>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-=======
->>>>>>> parent of 9b6885b (reset password and conformation mail)
-=======
->>>>>>> parent of 9b6885b (reset password and conformation mail)
-=======
->>>>>>> parent of 9b6885b (reset password and conformation mail)
   return (
     <div className="register-container" role="main">
       {/* Background Illustrations */}
@@ -513,23 +267,6 @@ function Register() {
               >
                 {loading ? 'Creating Account...' : 'Create Account'}
               </button>
-
-              {/* Resend Verification Email Button */}
-              {emailSendFailed && email && name && password && (
-                <div className="resend-verification-container">
-                  <p className="resend-verification-text">
-                    Couldn't send verification email? Try again:
-                  </p>
-                  <button
-                    type="button"
-                    className={`btn btn-secondary ${loading ? 'btn-loading' : ''}`}
-                    onClick={handleResendVerification}
-                    disabled={loading}
-                  >
-                    {loading ? 'Sending...' : 'Resend Verification Email'}
-                  </button>
-                </div>
-              )}
 
               <div className="register-link-container">
                 <span className="register-link-text">Already have an account? </span>

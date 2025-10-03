@@ -1,6 +1,6 @@
 import { signOut } from 'firebase/auth';
-import { collection, getDocs, query, where, getDoc, doc } from 'firebase/firestore';
-import React, { useState, useEffect, useMemo } from 'react';
+import { collection, doc, getDoc, getDocs, query, where } from 'firebase/firestore';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { useFirebase } from '../../../context/FirebaseContext';
@@ -33,7 +33,7 @@ function CandidateTests() {
         // Remove the status filter to show all tests
         const q = testsRef;
         const snap = await getDocs(q);
-        
+
         // Filter out tests that are not active or published
         const now = new Date();
         const testsData = snap.docs
@@ -41,31 +41,31 @@ function CandidateTests() {
           .filter(test => {
             // Include test if it's active or doesn't have a status field (for backward compatibility)
             const isActive = !test.status || test.status === 'active';
-            
+
             // Check if test has an end date and if it's still valid
-            const hasValidEndDate = !test.endDate || 
+            const hasValidEndDate = !test.endDate ||
                                   (test.endDate?.toDate && test.endDate.toDate() > now) ||
                                   (test.endDate?.seconds && new Date(test.endDate.seconds * 1000) > now);
-            
+
             return isActive && hasValidEndDate;
           });
-        
+
         // Deduplicate tests by title and branch
         const testMap = new Map();
         testsData.forEach(test => {
           const key = `${test.title}_${test.branch}`;
           const existingTest = testMap.get(key);
-          
+
           if (!existingTest) {
             testMap.set(key, test);
           } else {
             // If test has an end date, keep the one with the latest end date
             // Otherwise, keep the most recently created one
-            const existingEndDate = existingTest.endDate?.toDate?.() || existingTest.endDate?.seconds ? 
+            const existingEndDate = existingTest.endDate?.toDate?.() || existingTest.endDate?.seconds ?
               new Date(existingTest.endDate.seconds * 1000) : null;
-            const currentEndDate = test.endDate?.toDate?.() || test.endDate?.seconds ? 
+            const currentEndDate = test.endDate?.toDate?.() || test.endDate?.seconds ?
               new Date(test.endDate.seconds * 1000) : null;
-              
+
             if (existingEndDate && currentEndDate) {
               if (currentEndDate > existingEndDate) {
                 testMap.set(key, test);
@@ -74,14 +74,14 @@ function CandidateTests() {
               // Fall back to creation date if end dates are not available
               const existingTime = existingTest.createdAt?.toDate?.()?.getTime() || 0;
               const currentTime = test.createdAt?.toDate?.()?.getTime() || 0;
-              
+
               if (currentTime > existingTime) {
                 testMap.set(key, test);
               }
             }
           }
         });
-        
+
         const uniqueTests = Array.from(testMap.values());
         setTests(uniqueTests);
       } catch (e) {
@@ -108,7 +108,7 @@ function CandidateTests() {
       );
       const existingSubmissions = await getDocs(existingSubmissionsQuery);
       const submissionCount = existingSubmissions.size;
-      
+
       console.log('UserDashboard submission check:', {
         submissionCount,
         allowMultiple: test.allowMultipleSubmissions,
@@ -143,7 +143,7 @@ function CandidateTests() {
           navigate(`/test/${test.id}`);
         }
       }
-      
+
     } catch (error) {
       console.error('Error checking submission status:', error);
       // On error, default to proceeding to test
@@ -172,12 +172,12 @@ function CandidateTests() {
   return (
     <div className="candidate-tests">
       {showBlockedCard && (
-        <BlockedSubmissionCard 
-          message={blockMessage} 
+        <BlockedSubmissionCard
+          message={blockMessage}
           onClose={() => setShowBlockedCard(false)}
         />
       )}
-      
+
       <div className="search-container">
         <input
           type="text"
@@ -187,7 +187,7 @@ function CandidateTests() {
           className="search-input"
         />
       </div>
-      
+
       <div className="tests-grid">
         {filteredTests.map(test => (
           <div key={test.id} className="test-card">
@@ -210,9 +210,9 @@ function CandidateTests() {
                 <span>Created: {formatDate(test.createdAt)}</span>
               </div>
             </div>
-            
+
             <div className="test-actions">
-              <button 
+              <button
                 className="btn btn-primary test-start-btn"
                 onClick={() => checkSubmissionsAndStart(test)}
                 disabled={checkingSubmissions}
@@ -220,7 +220,7 @@ function CandidateTests() {
                 <span className="btn-icon">{checkingSubmissions ? '⏳' : '🚀'}</span>
                 {checkingSubmissions ? 'Checking...' : 'Start Test'}
               </button>
-              
+
               {test.password && (
                 <div className="test-password-hint">
                   <span className="password-icon">🔒</span>
@@ -231,7 +231,7 @@ function CandidateTests() {
           </div>
         ))}
       </div>
-      
+
       {filteredTests.length === 0 && (
         <div className="no-tests">
           {searchQuery ? (
@@ -239,7 +239,7 @@ function CandidateTests() {
               <div className="no-tests-icon">🔍</div>
               <h3>No Tests Found</h3>
               <p>No tests match your search "{searchQuery}"</p>
-              <button 
+              <button
                 className="btn btn-outline"
                 onClick={() => setSearchQuery('')}
               >
@@ -251,7 +251,7 @@ function CandidateTests() {
               <div className="no-tests-icon">📚</div>
               <h3>No Tests Available</h3>
               <p>There are no active tests at the moment. Check back later!</p>
-              <button 
+              <button
                 className="btn btn-primary"
                 onClick={() => window.location.reload()}
               >
@@ -280,7 +280,7 @@ function CandidateResults() {
       setFilteredResults(results);
     } else {
       const searchLower = searchTerm.toLowerCase();
-      const filtered = results.filter(result => 
+      const filtered = results.filter(result =>
         (result.testTitle || result.title || '').toLowerCase().includes(searchLower)
       );
       setFilteredResults(filtered);
@@ -290,14 +290,14 @@ function CandidateResults() {
   useEffect(() => {
     const loadResults = async () => {
       if (!user?.uid) {return;}
-      
+
       setLoading(true);
       setError('');
       try {
         const resultsRef = collection(db, 'results');
         // Fetch results with status 'submitted' or 'evaluated' only (exclude auto-submitted)
         const q = query(
-          resultsRef, 
+          resultsRef,
           where('candidateId', '==', user.uid),
           where('status', 'in', ['submitted', 'evaluated'])
         );
@@ -305,7 +305,7 @@ function CandidateResults() {
         // Process results and fetch test details for each
         const resultsWithTestData = await Promise.all(snap.docs.map(async (d) => {
           const resultData = { id: d.id, ...d.data() };
-          
+
           // Fetch test data to get the title and totalMarks
           try {
             const testDoc = await getDoc(doc(db, 'tests', resultData.testId));
@@ -327,28 +327,28 @@ function CandidateResults() {
           } catch (error) {
             console.error('Error fetching test data:', error);
           }
-          
+
           return resultData;
         }));
-        
+
         // Sort by submission date (newest first)
         resultsWithTestData.sort((a, b) => {
           const timeA = a.submittedAt?.toDate?.() ? a.submittedAt.toDate().getTime() : 0;
           const timeB = b.submittedAt?.toDate?.() ? b.submittedAt.toDate().getTime() : 0;
           return timeB - timeA;
         });
-        
+
         // Remove duplicate submissions - keep only the latest submission per test
         const uniqueResults = [];
         const seenTestIds = new Set();
-        
+
         for (const result of resultsWithTestData) {
           if (!seenTestIds.has(result.testId)) {
             seenTestIds.add(result.testId);
             uniqueResults.push(result);
           }
         }
-        
+
         setResults(uniqueResults);
         setFilteredResults(uniqueResults); // Initialize filtered results with unique results
       } catch (e) {
@@ -358,7 +358,7 @@ function CandidateResults() {
         setLoading(false);
       }
     };
-    
+
     loadResults();
   }, [user?.uid]);
 
@@ -373,7 +373,7 @@ function CandidateResults() {
     <div className="candidate-results">
       <div className="results-header">
         <h2>Your Test Results</h2>
-        
+
         <div className="search-container">
           <input
             type="text"
@@ -384,13 +384,13 @@ function CandidateResults() {
           />
         </div>
       </div>
-      
+
       {filteredResults.length === 0 ? (
         <div className="no-results">
           <div className="no-results-icon">📊</div>
           <h3>No Test Results Yet</h3>
           <p>Complete some tests to see your results here.</p>
-          <button 
+          <button
             className="btn btn-primary"
             onClick={() => window.location.reload()}
           >
@@ -430,7 +430,7 @@ function CandidateResults() {
                   </span>
                 </div>
                 <div className="score-label">
-                  {result.status === 'evaluated' ? 'Score' : 
+                  {result.status === 'evaluated' ? 'Score' :
                    result.status === 'auto-submitted' ? 'Auto-Submitted' : 'Submitted'}
                 </div>
               </div>
@@ -462,10 +462,10 @@ function UserDashboard() {
   useEffect(() => {
     setActiveTab('tests');
   }, []);
-  
+
   const tabs = useMemo(() => [
-    { label: 'Available Tests', value: 'tests' },
-    { label: 'My Results', value: 'results' },
+    { label: 'Tests', value: 'tests' },
+    { label: 'Results', value: 'results' },
     { label: 'Leaderboard', value: 'leaderboard' },
   ], []);
 
@@ -488,7 +488,7 @@ function UserDashboard() {
         <div className="header-content">
           <div className="user-info">
             <h1>Welcome, {userDoc?.name || user?.displayName || 'Candidate'}</h1>
-            
+
           </div>
           <div className="header-actions" style={{ display: 'flex', alignItems: 'center', gap: '8px', position: 'relative' }}>
             <button
