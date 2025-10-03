@@ -12,8 +12,7 @@ import './Dashboard.css';
 
 function Dashboard() {
   const navigate = useNavigate();
-  const { user, userDoc, blocked, loading } = useFirebase();
-  const role = (userDoc?.role || 'candidate').toLowerCase();
+  const { user, userDoc, role, blocked, loading } = useFirebase();
 
   useEffect(() => {
     // If not loading and no user, redirect to login
@@ -37,13 +36,22 @@ function Dashboard() {
   }
 
   // Route to appropriate dashboard based on user role
+  // Admin and Head don't need approval check
   if (role === 'admin') {
     return <AdminDashboard />;
-  } else if (role === 'head') {
-    return <HeadDashboard />;
-  } else {
-    return <UserDashboard />;
   }
+  
+  if (role === 'head') {
+    return <HeadDashboard />;
+  }
+  
+  // Candidates need approval check
+  if (userDoc?.approved === false) {
+    navigate('/waiting');
+    return <Loading message="Checking approval status" />;
+  }
+  
+  return <UserDashboard />;
 }
 
 export default Dashboard;

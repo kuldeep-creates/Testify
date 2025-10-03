@@ -1768,6 +1768,179 @@ function HeadResults() {
   );
 }
 
+// Head Users Component
+function HeadUsers() {
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sortOrder, setSortOrder] = useState('oldest');
+  const { user: currentUser, userDoc } = useFirebase();
+
+  useEffect(() => {
+    const fetchUsers = async () => {
+      try {
+        const usersRef = collection(db, 'user');
+        const q = query(usersRef, where('domain', '==', userDoc?.domain || ''));
+        const querySnapshot = await getDocs(q);
+
+        const usersData = [];
+        querySnapshot.forEach((doc) => {
+          const userData = { id: doc.id, ...doc.data() };
+          // Only show candidates from same domain
+          if (userData.role === 'candidate') {
+            usersData.push(userData);
+          }
+        });
+
+        // Sort users
+        usersData.sort((a, b) => {
+          const timeA = a.createdAt?.toDate?.() ? a.createdAt.toDate().getTime() : 0;
+          const timeB = b.createdAt?.toDate?.() ? b.createdAt.toDate().getTime() : 0;
+          return timeA - timeB;
+        });
+
+        setUsers(usersData);
+        setLoading(false);
+      } catch (err) {
+        console.error('Error loading users:', err);
+        setError(`Failed to load users: ${err.message}`);
+        setLoading(false);
+      }
+    };
+
+    if (userDoc?.domain) {
+      fetchUsers();
+    }
+  }, [userDoc?.domain]);
+
+  const handleApproval = async (userId, approved) => {
+    try {
+      const userRef = doc(db, 'user', userId);
+      await updateDoc(userRef, {
+        approved: approved,
+        approvedAt: serverTimestamp(),
+        approvedBy: currentUser?.email
+      });
+      
+      // Update local state
+      setUsers(users.map(u => u.id === userId ? { ...u, approved } : u));
+      alert(approved ? 'User approved successfully!' : 'User approval revoked!');
+    } catch (error) {
+      console.error('Error updating approval status:', error);
+      alert('Failed to update approval status: ' + error.message);
+    }
+  };
+
+  const filteredUsers = users
+    .filter(user => {
+      const matchesSearch = user.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        user.name?.toLowerCase().includes(searchQuery.toLowerCase());
+      return matchesSearch;
+    })
+    .sort((a, b) => {
+      const timeA = a.createdAt?.toDate?.() ? a.createdAt.toDate().getTime() : 0;
+      const timeB = b.createdAt?.toDate?.() ? b.createdAt.toDate().getTime() : 0;
+      return sortOrder === 'newest' ? timeB - timeA : timeA - timeB;
+    });
+
+  if (loading) {
+    return <Loading message="Loading users" subtext="Fetching user accounts" variant="inline" size="large" />;
+  }
+
+  if (error) {
+    return (
+      <div className="head-users">
+        <div className="error-message">{error}</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="head-users">
+      <div className="users-header">
+        <h2>Manage Users - {userDoc?.domain || 'Your Domain'}</h2>
+        <div className="search-container">
+          <input
+            type="text"
+            placeholder="Search by name or email..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="search-input"
+          />
+        </div>
+        <div className="filters">
+          <select
+            value={sortOrder}
+            onChange={(e) => setSortOrder(e.target.value)}
+            className="filter-select"
+          >
+            <option value="oldest">⏰ Oldest First</option>
+            <option value="newest">🆕 Newest First</option>
+          </select>
+        </div>
+      </div>
+
+      {filteredUsers.length === 0 ? (
+        <div className="no-users">
+          <div className="no-users-icon">👥</div>
+          <h3>No Users Found</h3>
+          <p>No candidates in your domain yet.</p>
+        </div>
+      ) : (
+        <div className="users-table-container">
+          <table className="users-table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Approval</th>
+                <th>Status</th>
+                <th>Registered</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredUsers.map(user => (
+                <tr key={user.id}>
+                  <td>{user.name || 'N/A'}</td>
+                  <td>{user.email}</td>
+                  <td>
+                    {user.approved === false ? (
+                      <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <button
+                          className="btn btn-sm btn-success"
+                          onClick={() => handleApproval(user.id, true)}
+                          title="Approve user"
+                        >
+                          ✓ Approve
+                        </button>
+                      </div>
+                    ) : (
+                      <span className="badge badge-success">
+                        ✓ Approved
+                      </span>
+                    )}
+                  </td>
+                  <td>
+                    <span className={`badge ${user.blocked ? 'badge-error' : 'badge-success'}`}>
+                      {user.blocked ? 'Blocked' : 'Active'}
+                    </span>
+                  </td>
+                  <td>
+                    {user.createdAt?.toDate?.() ? 
+                      new Date(user.createdAt.toDate()).toLocaleDateString() : 
+                      'N/A'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Head Submission Detail View Component
 function HeadSubmissionDetailView({ submission, test, onBack }) {
   const [questions, setQuestions] = useState([]);
@@ -2104,6 +2277,7 @@ function HeadDashboard() {
     { label: 'Create Test', value: 'create' },
     { label: 'Manage Tests', value: 'manage' },
     { label: 'Results', value: 'results' },
+    { label: 'Users', value: 'users' },
     { label: 'Leaderboard', value: 'leaderboard' },
   ], []);
 
@@ -2154,6 +2328,7 @@ function HeadDashboard() {
           {activeTab === 'create' && <HeadCreateTest />}
           {activeTab === 'manage' && <HeadManageTests />}
           {activeTab === 'results' && <HeadResults />}
+          {activeTab === 'users' && <HeadUsers />}
           {activeTab === 'leaderboard' && <Leaderboard />}
         </div>
       </div>

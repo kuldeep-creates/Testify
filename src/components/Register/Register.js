@@ -85,6 +85,7 @@ function Register() {
           email: normalizedEmail,
           role: 'candidate', // Default to candidate, admin can change role
           blocked: false,
+          approved: false, // Requires admin approval
           domain: 'Full Stack', // Default domain, admin can change
           createdAt: serverTimestamp(),
           lastLogin: serverTimestamp(),

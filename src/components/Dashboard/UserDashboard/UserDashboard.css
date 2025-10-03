@@ -141,7 +141,7 @@
 }
 
 .test-meta {
-  display: flex;
+  display: contents;
   flex-direction: column;
   gap: 0.75rem;
   margin-bottom: 1.5rem;

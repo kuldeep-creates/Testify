@@ -140,8 +140,9 @@ function AdminUsers() {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterRole, setFilterRole] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
+  const [sortOrder, setSortOrder] = useState('oldest'); // 'newest' or 'oldest'
   const [currentPage, setCurrentPage] = useState(1);
-  const { user: currentUser } = useFirebase();
+  const { user: currentUser, userDoc } = useFirebase();
   const usersPerPage = 10;
   // User details view state
   const [selectedUser, setSelectedUser] = useState(null);
@@ -154,10 +155,10 @@ function AdminUsers() {
 
   // Check if current user can perform admin actions
   const canPerformAdminActions = currentUser?.email?.toLowerCase() === appConfig.superAdminEmail.toLowerCase() ||
-    currentUser?.role === 'admin';
+    userDoc?.role === 'admin';
 
   useEffect(() => {
-    const fetchUsers = async () => {
+    const fetchUsers = async (retryCount = 0) => {
       try {
         const usersRef = collection(db, 'user');
         const q = query(usersRef);
@@ -172,13 +173,26 @@ function AdminUsers() {
           }
         });
 
+        // Sort users by creation time (oldest first)
+        usersData.sort((a, b) => {
+          const timeA = a.createdAt?.toDate?.() ? a.createdAt.toDate().getTime() : 0;
+          const timeB = b.createdAt?.toDate?.() ? b.createdAt.toDate().getTime() : 0;
+          return timeA - timeB;
+        });
+
         setUsers(usersData);
         setLoading(false);
-        console.log('Users loaded successfully:', usersData.length);
       } catch (err) {
         console.error('Error loading users:', err);
-        setError(`Failed to load users: ${err.message}`);
-        setLoading(false);
+        
+        // Retry on network errors
+        if (retryCount < 3 && (err.code === 'unavailable' || err.message?.includes('QUIC') || err.message?.includes('network'))) {
+          console.log(`Retrying... Attempt ${retryCount + 1}/3`);
+          setTimeout(() => fetchUsers(retryCount + 1), 1000 * (retryCount + 1));
+        } else {
+          setError(`Failed to load users: ${err.message}`);
+          setLoading(false);
+        }
       }
     };
 
@@ -195,11 +209,39 @@ function AdminUsers() {
           usersData.push(userData);
         }
       });
+
+      // Sort users by creation time (oldest first)
+      usersData.sort((a, b) => {
+        const timeA = a.createdAt?.toDate?.() ? a.createdAt.toDate().getTime() : 0;
+        const timeB = b.createdAt?.toDate?.() ? b.createdAt.toDate().getTime() : 0;
+        return timeA - timeB;
+      });
+
       setUsers(usersData);
     });
 
     return () => unsubscribe();
   }, []);
+
+  const handleApproval = async (userId, approved) => {
+    if (!canPerformAdminActions) {
+      alert('You do not have permission to approve users');
+      return;
+    }
+
+    try {
+      const userRef = doc(db, 'user', userId);
+      await updateDoc(userRef, {
+        approved: approved,
+        approvedAt: serverTimestamp(),
+        approvedBy: currentUser?.email
+      });
+      alert(approved ? 'User approved successfully!' : 'User approval revoked!');
+    } catch (error) {
+      console.error('Error updating approval status:', error);
+      alert('Failed to update approval status: ' + error.message);
+    }
+  };
 
   const handleRoleChange = async (userId, newRole, newDomain = null) => {
     if (!canPerformAdminActions) {
@@ -213,6 +255,14 @@ function AdminUsers() {
         role: newRole,
         updatedAt: serverTimestamp()
       };
+      
+      // Auto-approve admin and head roles
+      if (newRole === 'admin' || newRole === 'head') {
+        updateData.approved = true;
+        updateData.approvedAt = serverTimestamp();
+        updateData.approvedBy = currentUser?.email;
+      }
+      
       if (newRole === 'head' && newDomain) {
         updateData.domain = newDomain;
       } else if (newRole !== 'head') {
@@ -325,16 +375,23 @@ function AdminUsers() {
     return () => window.removeEventListener('keydown', onKey);
   }, [selectedUser]);
 
-  const filteredUsers = users.filter(user => {
-    const matchesSearch = user.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      user.name?.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesRole = filterRole === 'all' || user.role === filterRole;
-    const matchesStatus = filterStatus === 'all' ||
-      (filterStatus === 'active' && !user.blocked) ||
-      (filterStatus === 'blocked' && user.blocked);
+  const filteredUsers = users
+    .filter(user => {
+      const matchesSearch = user.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        user.name?.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesRole = filterRole === 'all' || user.role === filterRole;
+      const matchesStatus = filterStatus === 'all' ||
+        (filterStatus === 'active' && !user.blocked) ||
+        (filterStatus === 'blocked' && user.blocked);
 
-    return matchesSearch && matchesRole && matchesStatus;
-  });
+      return matchesSearch && matchesRole && matchesStatus;
+    })
+    .sort((a, b) => {
+      // Sort by creation time based on sortOrder
+      const timeA = a.createdAt?.toDate?.() ? a.createdAt.toDate().getTime() : 0;
+      const timeB = b.createdAt?.toDate?.() ? b.createdAt.toDate().getTime() : 0;
+      return sortOrder === 'newest' ? timeB - timeA : timeA - timeB;
+    });
 
   const totalPages = Math.ceil(filteredUsers.length / usersPerPage);
   const startIndex = (currentPage - 1) * usersPerPage;
@@ -342,7 +399,7 @@ function AdminUsers() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, filterRole, filterStatus]);
+  }, [searchQuery, filterRole, filterStatus, sortOrder]);
 
   if (loading) {return (
     <div className="loading-tests">
@@ -414,6 +471,14 @@ function AdminUsers() {
             <option value="active">Active</option>
             <option value="blocked">Blocked</option>
           </select>
+          <select
+            value={sortOrder}
+            onChange={(e) => setSortOrder(e.target.value)}
+            className="filter-select"
+          >
+            <option value="oldest">⏰ Oldest First</option>
+            <option value="newest">🆕 Newest First</option>
+          </select>
         </div>
       </div>
 
@@ -443,6 +508,7 @@ function AdminUsers() {
                   <th>Email</th>
                   <th>Role</th>
                   <th>Domain</th>
+                  <th>Approval</th>
                   <th>Status</th>
                   <th>Actions</th>
                 </tr>
@@ -496,13 +562,38 @@ function AdminUsers() {
                       />
                     </td>
                     <td>
+                      {user.approved === false ? (
+                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                          <button
+                            className="btn btn-sm btn-success"
+                            onClick={() => handleApproval(user.id, true)}
+                            disabled={!canPerformAdminActions}
+                            title="Approve user"
+                          >
+                            ✓ Approve
+                          </button>
+                          <button
+                            className="btn btn-sm btn-danger"
+                            onClick={() => handleBlockToggle(user.id, false)}
+                            disabled={!canPerformAdminActions}
+                            title="Reject user"
+                          >
+                            ✗ Reject
+                          </button>
+                        </div>
+                      ) : (
+                        <span className="badge badge-success">
+                          ✓ Approved
+                        </span>
+                      )}
+                    </td>
+                    <td>
                       <span className={`badge ${user.blocked ? 'badge-error' : 'badge-success'}`}>
                         {user.blocked ? 'Blocked' : 'Active'}
                       </span>
                     </td>
                     <td>
                       <div className="user-actions">
-
                         <button
                           className={`btn btn-sm ${user.blocked ? 'btn-success' : 'btn-danger'}`}
                           onClick={() => handleBlockToggle(user.id, user.blocked)}
