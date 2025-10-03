@@ -1,14 +1,23 @@
 <<<<<<< HEAD
+<<<<<<< HEAD
 import { sendEmailVerification } from 'firebase/auth';
 import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 =======
+=======
+>>>>>>> parent of 9b6885b (reset password and conformation mail)
 import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+<<<<<<< HEAD
 >>>>>>> parent of 9b6885b (reset password and conformation mail)
 
+=======
+
+import { auth, db } from '../../firebase';
+import Logger from '../../utils/logger';
+>>>>>>> parent of 9b6885b (reset password and conformation mail)
 import '../../components/Loading/Loading.css';
 import { auth } from '../../firebase';
 import Logger from '../../utils/logger';
@@ -37,6 +46,7 @@ function Register() {
   });
   const [emailSendFailed, setEmailSendFailed] = useState(false);
 
+<<<<<<< HEAD
 <<<<<<< HEAD
   // Check for email verification redirect
   const location = useLocation();
@@ -182,6 +192,8 @@ function Register() {
 
 =======
 >>>>>>> parent of 9b6885b (reset password and conformation mail)
+=======
+>>>>>>> parent of 9b6885b (reset password and conformation mail)
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -240,6 +252,9 @@ function Register() {
       }
       setSuccess('Account created! Redirecting to dashboard...');
       setTimeout(() => navigate('/dashboard'), 800);
+<<<<<<< HEAD
+>>>>>>> parent of 9b6885b (reset password and conformation mail)
+=======
 >>>>>>> parent of 9b6885b (reset password and conformation mail)
     } catch (err) {
       Logger.error('Registration failed', {
@@ -257,6 +272,7 @@ function Register() {
     }
   };
 
+<<<<<<< HEAD
 <<<<<<< HEAD
   // If confirmation card should be shown
   if (showConfirmationCard) {
@@ -322,6 +338,8 @@ function Register() {
     );
   }
 
+=======
+>>>>>>> parent of 9b6885b (reset password and conformation mail)
 =======
 >>>>>>> parent of 9b6885b (reset password and conformation mail)
   return (

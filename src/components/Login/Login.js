@@ -1,8 +1,14 @@
 <<<<<<< HEAD
+<<<<<<< HEAD
 import { sendPasswordResetEmail, signInWithEmailAndPassword } from 'firebase/auth';
 import { doc, getDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
+=======
+import React, { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { signInWithEmailAndPassword } from 'firebase/auth';
+>>>>>>> parent of 9b6885b (reset password and conformation mail)
 =======
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';

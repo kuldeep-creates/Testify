@@ -17,6 +17,7 @@ function Dashboard() {
 
   useEffect(() => {
 <<<<<<< HEAD
+<<<<<<< HEAD
     // Check for email verification success
     const params = new URLSearchParams(location.search);
     if (params.get('verified') === 'true') {
@@ -41,6 +42,8 @@ function Dashboard() {
   }, [location, user, loading, navigate]);
 
   useEffect(() => {
+=======
+>>>>>>> parent of 9b6885b (reset password and conformation mail)
 =======
 >>>>>>> parent of 9b6885b (reset password and conformation mail)
     // If not loading and no user, redirect to login
