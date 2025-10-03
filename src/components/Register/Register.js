@@ -1,9 +1,12 @@
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 import { sendEmailVerification } from 'firebase/auth';
 import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 =======
+=======
+>>>>>>> parent of 9b6885b (reset password and conformation mail)
 =======
 >>>>>>> parent of 9b6885b (reset password and conformation mail)
 import { createUserWithEmailAndPassword } from 'firebase/auth';
@@ -11,8 +14,14 @@ import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 <<<<<<< HEAD
+<<<<<<< HEAD
 >>>>>>> parent of 9b6885b (reset password and conformation mail)
 
+=======
+
+import { auth, db } from '../../firebase';
+import Logger from '../../utils/logger';
+>>>>>>> parent of 9b6885b (reset password and conformation mail)
 =======
 
 import { auth, db } from '../../firebase';
@@ -46,6 +55,7 @@ function Register() {
   });
   const [emailSendFailed, setEmailSendFailed] = useState(false);
 
+<<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
   // Check for email verification redirect
@@ -194,6 +204,8 @@ function Register() {
 >>>>>>> parent of 9b6885b (reset password and conformation mail)
 =======
 >>>>>>> parent of 9b6885b (reset password and conformation mail)
+=======
+>>>>>>> parent of 9b6885b (reset password and conformation mail)
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -253,6 +265,9 @@ function Register() {
       setSuccess('Account created! Redirecting to dashboard...');
       setTimeout(() => navigate('/dashboard'), 800);
 <<<<<<< HEAD
+<<<<<<< HEAD
+>>>>>>> parent of 9b6885b (reset password and conformation mail)
+=======
 >>>>>>> parent of 9b6885b (reset password and conformation mail)
 =======
 >>>>>>> parent of 9b6885b (reset password and conformation mail)
@@ -272,6 +287,7 @@ function Register() {
     }
   };
 
+<<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
   // If confirmation card should be shown
@@ -338,6 +354,8 @@ function Register() {
     );
   }
 
+=======
+>>>>>>> parent of 9b6885b (reset password and conformation mail)
 =======
 >>>>>>> parent of 9b6885b (reset password and conformation mail)
 =======
