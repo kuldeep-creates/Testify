@@ -1,11 +1,22 @@
+<<<<<<< HEAD
 import { sendEmailVerification } from 'firebase/auth';
 import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
+=======
+import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import React, { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+>>>>>>> parent of 9b6885b (reset password and conformation mail)
 
 import '../../components/Loading/Loading.css';
 import { auth } from '../../firebase';
 import Logger from '../../utils/logger';
+<<<<<<< HEAD
 import { showError, showSuccess } from '../../utils/notifications';
+=======
+import '../../components/Loading/Loading.css';
+>>>>>>> parent of 9b6885b (reset password and conformation mail)
 import './Register.css';
 
 function Register() {
@@ -26,6 +37,7 @@ function Register() {
   });
   const [emailSendFailed, setEmailSendFailed] = useState(false);
 
+<<<<<<< HEAD
   // Check for email verification redirect
   const location = useLocation();
   const [, setVerificationEmailSent] = useState(false);
@@ -168,6 +180,8 @@ function Register() {
     updatePasswordValidation(newPassword);
   };
 
+=======
+>>>>>>> parent of 9b6885b (reset password and conformation mail)
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -189,6 +203,7 @@ function Register() {
     setLoading(true);
     try {
       const normalizedEmail = email.trim();
+<<<<<<< HEAD
 
       // Store user data and send verification email (no account created yet)
       const userData = {
@@ -202,6 +217,30 @@ function Register() {
       setSuccess('Registration initiated! Please check your email and click the verification link to complete your account setup.');
       setUserEmail(normalizedEmail);
       setShowConfirmationCard(true);
+=======
+      const cred = await createUserWithEmailAndPassword(auth, normalizedEmail, password);
+      const uid = cred.user.uid;
+      try {
+        await setDoc(doc(db, 'user', uid), {
+          userId: uid,
+          name,
+          email: normalizedEmail,
+          role: 'candidate', // Default to candidate, admin can change role
+          blocked: false,
+          domain: 'Full Stack', // Default domain, admin can change
+          createdAt: serverTimestamp(),
+          lastLogin: serverTimestamp(),
+        }, { merge: true });
+      } catch (writeErr) {
+        Logger.warn('Profile creation failed during registration', {
+          errorCode: writeErr.code,
+          errorMessage: writeErr.message
+        });
+        // Continue to dashboard; FirebaseContext will attempt to create profile lazily
+      }
+      setSuccess('Account created! Redirecting to dashboard...');
+      setTimeout(() => navigate('/dashboard'), 800);
+>>>>>>> parent of 9b6885b (reset password and conformation mail)
     } catch (err) {
       Logger.error('Registration failed', {
         errorCode: err.code,
@@ -218,6 +257,7 @@ function Register() {
     }
   };
 
+<<<<<<< HEAD
   // If confirmation card should be shown
   if (showConfirmationCard) {
     return (
@@ -282,6 +322,8 @@ function Register() {
     );
   }
 
+=======
+>>>>>>> parent of 9b6885b (reset password and conformation mail)
   return (
     <div className="register-container" role="main">
       {/* Background Illustrations */}
