@@ -1,6 +1,6 @@
 import { signOut } from 'firebase/auth';
-import { collection, getDocs, query, where, doc, setDoc, serverTimestamp, addDoc, updateDoc, deleteDoc, getDoc } from 'firebase/firestore';
-import React, { useState, useEffect, useMemo } from 'react';
+import { addDoc, collection, deleteDoc, doc, getDoc, getDocs, query, serverTimestamp, setDoc, updateDoc, where } from 'firebase/firestore';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { useFirebase } from '../../../context/FirebaseContext';
@@ -28,21 +28,21 @@ const formatDuration = (hours, minutes) => {
 // Helper function to parse duration string into hours and minutes
 const parseDuration = (durationString) => {
   if (!durationString) {return { hours: 0, minutes: 30 };}
-  
+
   // Handle formats like "30 min", "1h", "1h 30min", "90 min"
   const minMatch = durationString.match(/(\d+)\s*min/);
   const hourMatch = durationString.match(/(\d+)h/);
-  
+
   let totalMinutes = 0;
-  
+
   if (hourMatch) {
     totalMinutes += parseInt(hourMatch[1]) * 60;
   }
-  
+
   if (minMatch) {
     totalMinutes += parseInt(minMatch[1]);
   }
-  
+
   // If no matches, try to parse as just minutes
   if (!hourMatch && !minMatch) {
     const numMatch = durationString.match(/(\d+)/);
@@ -50,10 +50,10 @@ const parseDuration = (durationString) => {
       totalMinutes = parseInt(numMatch[1]);
     }
   }
-  
+
   const hours = Math.floor(totalMinutes / 60);
   const minutes = totalMinutes % 60;
-  
+
   return { hours, minutes };
 };
 
@@ -99,7 +99,7 @@ function HeadCreateTest() {
   };
 
   const updateQuestion = (id, field, value) => {
-    setQuestions(questions.map(q => 
+    setQuestions(questions.map(q =>
       q.id === id ? { ...q, [field]: value } : q
     ));
   };
@@ -128,7 +128,7 @@ function HeadCreateTest() {
         questionText: q.questionText.substring(0, 50) + '...',
         imageUrl: q.imageUrl
       })));
-      
+
       // Validate test data
       if (!testData.title || testData.title.trim() === '') {
         setError('Test title is required');
@@ -142,16 +142,16 @@ function HeadCreateTest() {
         setError('At least one question is required');
         return;
       }
-      
+
       const testRef = doc(collection(db, 'tests'));
       const testId = testRef.id;
-      
+
       const testDoc = {
         testId,
         title: testData.title.trim(),
         description: testData.description?.trim() || 'No description',
         duration: formatDuration(testData.durationHours, testData.durationMinutes),
-        branch: testData.branch.trim(),
+        domain: testData.branch.trim(), // Use domain field
         password: testData.password?.trim() || 'test123',
         totalMarks: questions.reduce((sum, q) => sum + (q.marks || 1), 0),
         allowMultipleSubmissions: testData.allowMultipleSubmissions || false,
@@ -160,10 +160,10 @@ function HeadCreateTest() {
         createdAt: serverTimestamp(),
         scheduledFor: serverTimestamp()
       };
-      
+
       await setDoc(testRef, testDoc);
       console.log('[Head:createTest] Test document saved successfully with ID:', testId);
-      
+
       // Add questions as subcollection
       for (const question of questions) {
         const questionDoc = {
@@ -175,7 +175,7 @@ function HeadCreateTest() {
           marks: question.marks || 1,
           imageUrl: question.imageUrl || ''
         };
-        
+
         console.log('Saving question with imageUrl:', questionDoc.imageUrl);
         await addDoc(collection(db, 'tests', testId, 'questions'), questionDoc);
       }
@@ -204,7 +204,7 @@ function HeadCreateTest() {
           <span className="badge badge-primary">{userDoc?.domain || 'Full Stack'}</span>
         </div>
       </div>
-      
+
       <div className="create-test-content">
         {error && <div className="alert alert-error">{error}</div>}
         {success && <div className="alert alert-success">{success}</div>}
@@ -222,7 +222,7 @@ function HeadCreateTest() {
               />
               <div className="form-help">Choose a clear, descriptive title for your test</div>
             </div>
-            
+
             <div className="form-group">
               <label>Description</label>
               <textarea
@@ -285,7 +285,7 @@ function HeadCreateTest() {
                   Set the time limit for completing the test. Total: {formatDuration(testData.durationHours, testData.durationMinutes)}
                 </div>
               </div>
-              
+
               <div className="form-group">
                 <label>Domain</label>
                 <input
@@ -321,7 +321,7 @@ function HeadCreateTest() {
                     onChange={(e) => setTestData({...testData, allowMultipleSubmissions: e.target.checked})}
                     style={{ opacity: 0, width: 0, height: 0 }}
                   />
-                  <span 
+                  <span
                     className="toggle-slider"
                     style={{
                       position: 'absolute',
@@ -355,16 +355,16 @@ function HeadCreateTest() {
                 </span>
               </div>
               <div className="form-help">
-                {testData.allowMultipleSubmissions 
-                  ? 'Candidates can submit multiple times. Only the latest submission will be considered for grading.' 
+                {testData.allowMultipleSubmissions
+                  ? 'Candidates can submit multiple times. Only the latest submission will be considered for grading.'
                   : 'Candidates can submit only once. Choose this for final exams or assessments.'}
               </div>
             </div>
 
             <div className="form-actions">
-              <button 
+              <button
                 className="btn btn-primary"
-                onClick={() => setStep(2)} 
+                onClick={() => setStep(2)}
                 disabled={!testData.title || !testData.password}
               >
                 Next: Add Questions →
@@ -385,7 +385,7 @@ function HeadCreateTest() {
                   + Add Question
                 </button>
                 {questions.length > 0 && (
-                  <button 
+                  <button
                     className="btn btn-outline btn-sm btn-danger"
                     onClick={() => removeQuestion(questions[qIndex].id)}
                   >
@@ -431,8 +431,8 @@ function HeadCreateTest() {
                     </div>
                     {questions[qIndex].imageUrl && (
                       <div className="image-preview">
-                        <img 
-                          src={questions[qIndex].imageUrl} 
+                        <img
+                          src={questions[qIndex].imageUrl}
                           alt="Question illustration"
                           onError={(e) => {
                             e.target.style.display = 'none';
@@ -446,7 +446,7 @@ function HeadCreateTest() {
                         <div className="image-error" style={{display: 'none'}}>
                           ❌ Failed to load image. Please check the URL.
                         </div>
-                        <button 
+                        <button
                           type="button"
                           className="btn btn-outline btn-sm remove-image"
                           onClick={() => updateQuestion(questions[qIndex].id, 'imageUrl', '')}
@@ -535,7 +535,7 @@ function HeadCreateTest() {
                       onChange={(e) => updateQuestion(questions[qIndex].id, 'correctAnswer', e.target.value)}
                     />
                     <div className="form-help">
-                      {questions[qIndex].questionType === 'code' 
+                      {questions[qIndex].questionType === 'code'
                         ? "Provide the expected code solution or key implementation details"
                         : "Provide the expected answer or key points for evaluation"
                       }
@@ -550,23 +550,23 @@ function HeadCreateTest() {
                 ← Back to Test Details
               </button>
               <div className="question-nav">
-                <button 
+                <button
                   className="btn btn-outline btn-sm"
-                  onClick={goPrev} 
+                  onClick={goPrev}
                   disabled={qIndex <= 0}
                 >
                   ← Previous
                 </button>
-                <button 
+                <button
                   className="btn btn-outline btn-sm"
-                  onClick={goNext} 
+                  onClick={goNext}
                   disabled={qIndex >= questions.length - 1}
                 >
                   Next →
                 </button>
-                <button 
+                <button
                   className={`btn btn-primary btn-lg ${loading ? 'btn-loading' : ''}`}
-                  onClick={handleSubmit} 
+                  onClick={handleSubmit}
                   disabled={questions.length === 0 || loading}
                 >
                   {loading ? 'Creating Test...' : `Create Test (${questions.reduce((sum, q) => sum + q.marks, 0)} marks)`}
@@ -619,7 +619,7 @@ function HeadManageTests() {
         setLoading(false);
       }
     };
-    
+
     if (userDoc?.domain) {
       loadTests();
     }
@@ -641,7 +641,7 @@ function HeadManageTests() {
       const testUrl = `${window.location.origin}/test/${testId}`;
       await navigator.clipboard.writeText(testUrl);
       setCopiedTestId(testId);
-      
+
       // Reset the copied state after 2 seconds
       setTimeout(() => {
         setCopiedTestId(null);
@@ -655,7 +655,7 @@ function HeadManageTests() {
       textArea.select();
       document.execCommand('copy');
       document.body.removeChild(textArea);
-      
+
       setCopiedTestId(testId);
       setTimeout(() => {
         setCopiedTestId(null);
@@ -690,10 +690,10 @@ function HeadManageTests() {
     try {
       setEditLoading(true);
       console.log('Starting edit for test:', test);
-      
+
       // Manual database check
       await debugCheckDatabase(test.id);
-      
+
       const testData = await fetchTestWithQuestions(test.id);
       console.log('Fetched test data:', testData);
       console.log('Questions from database:', testData?.questions);
@@ -704,7 +704,7 @@ function HeadManageTests() {
           imageUrl: q.imageUrl
         })));
       }
-      
+
       if (testData) {
         setEditingTest(test);
         const parsedDuration = parseDuration(testData.duration || '30 min');
@@ -717,7 +717,7 @@ function HeadManageTests() {
           password: testData.password || '',
           allowMultipleSubmissions: testData.allowMultipleSubmissions || false
         });
-        
+
         // Ensure questions have all required fields including imageUrl
         const processedQuestions = (testData.questions || []).map(q => ({
           id: q.id || q.questionId || Date.now(),
@@ -728,7 +728,7 @@ function HeadManageTests() {
           marks: q.marks || 1,
           imageUrl: q.imageUrl || ''
         }));
-        
+
         console.log('Processed questions for editing:', processedQuestions);
         setEditQuestions(processedQuestions);
         setEditQIndex(0);
@@ -757,9 +757,9 @@ function HeadManageTests() {
           <span className="badge badge-primary">{userDoc?.domain || 'Full Stack'}</span>
         </div>
       </div>
-      
+
       {error && <div className="alert alert-error">{error}</div>}
-      
+
       {loading ? (
         <div className="loading-tests">
           <Loading message="Loading tests" subtext="Fetching your created tests" variant="inline" size="large" />
@@ -774,7 +774,7 @@ function HeadManageTests() {
                 <div>
                   <h4>{test.title}</h4>
                   <div className="test-meta">
-                    {test.branch} • {test.duration} • {test.totalMarks} marks
+                    {test.domain || 'Full Stack'} • {test.duration} • {test.totalMarks} marks
                   </div>
                   <div className="test-details">
                     <span>Created: {test.createdAt?.toDate?.()?.toLocaleDateString() || 'Unknown'}</span>
@@ -787,22 +787,22 @@ function HeadManageTests() {
                   {test.status}
                 </span>
               </div>
-              
+
               <div className="test-actions">
-                <button 
+                <button
                   className={`btn btn-outline btn-sm ${editLoading ? 'btn-loading' : ''}`}
                   onClick={() => startEditTest(test)}
                   disabled={editLoading}
                 >
                   {editLoading ? 'Loading...' : 'Edit'}
                 </button>
-                <button 
+                <button
                   className="btn btn-outline btn-sm"
                   onClick={() => toggleTestStatus(test.id, test.status)}
                 >
                   {test.status === 'active' ? 'Close' : 'Activate'}
                 </button>
-                <button 
+                <button
                   className={`btn btn-primary btn-sm ${copiedTestId === test.id ? 'btn-success' : ''}`}
                   onClick={() => copyShareableLink(test.id)}
                   title="Copy shareable test link"
@@ -813,13 +813,7 @@ function HeadManageTests() {
                     <>🔗 Share Link</>
                   )}
                 </button>
-                <button 
-                  className="btn btn-outline btn-sm"
-                  onClick={() => debugCheckDatabase(test.id)}
-                  style={{fontSize: '10px', padding: '2px 6px'}}
-                >
-                  🔍 Debug DB
-                </button>
+
               </div>
             </div>
           ))}
@@ -830,10 +824,7 @@ function HeadManageTests() {
       {editingTest && (
         <div className="edit-modal-overlay">
           <div className="edit-modal">
-            <div className="modal-header">
-              <h3>Edit Test: {editingTest.title}</h3>
-              <button className="modal-close" onClick={() => setEditingTest(null)}>×</button>
-            </div>
+
             <div className="modal-body">
               {console.log('Rendering modal body. editStep:', editStep, 'editingTest:', editingTest)}
               {editStep === 1 && (
@@ -914,7 +905,7 @@ function HeadManageTests() {
                           onChange={(e) => setEditTestData({...editTestData, allowMultipleSubmissions: e.target.checked})}
                           style={{ opacity: 0, width: 0, height: 0 }}
                         />
-                        <span 
+                        <span
                           className="toggle-slider"
                           style={{
                             position: 'absolute',
@@ -948,14 +939,47 @@ function HeadManageTests() {
                       </span>
                     </div>
                     <div className="form-help">
-                      {editTestData.allowMultipleSubmissions 
-                        ? 'Candidates can submit multiple times. Only the latest submission will be considered for grading.' 
+                      {editTestData.allowMultipleSubmissions
+                        ? 'Candidates can submit multiple times. Only the latest submission will be considered for grading.'
                         : 'Candidates can submit only once. Choose this for final exams or assessments.'}
                     </div>
                   </div>
 
                   <div className="modal-actions">
-                    <button 
+                    <button
+                      className="btn btn-outline"
+                      onClick={async () => {
+                        try {
+                          setEditLoading(true);
+                          await updateDoc(doc(db, 'tests', editingTest.id), {
+                            title: editTestData.title.trim(),
+                            description: editTestData.description.trim(),
+                            duration: formatDuration(editTestData.durationHours, editTestData.durationMinutes),
+                            password: editTestData.password.trim(),
+                            domain: editTestData.branch?.trim() || editingTest.branch || 'Full Stack',
+                            allowMultipleSubmissions: editTestData.allowMultipleSubmissions,
+                            updatedAt: serverTimestamp()
+                          });
+
+                          setTests(tests.map(t =>
+                            t.id === editingTest.id
+                              ? { ...t, ...editTestData, allowMultipleSubmissions: editTestData.allowMultipleSubmissions }
+                              : t
+                          ));
+
+                          setEditingTest(null);
+                          alert('Test details updated successfully!');
+                        } catch (error) {
+                          alert('Failed to update test: ' + error.message);
+                        } finally {
+                          setEditLoading(false);
+                        }
+                      }}
+                      disabled={!editTestData.title.trim() || editLoading}
+                    >
+                      {editLoading ? 'Saving...' : 'Save Changes'}
+                    </button>
+                    <button
                       className="btn btn-primary"
                       onClick={() => setEditStep(2)}
                       disabled={!editTestData.title.trim()}
@@ -970,7 +994,7 @@ function HeadManageTests() {
                 <div className="edit-step-2">
                   <div className="questions-header">
                     <h4>Questions ({editQuestions.length})</h4>
-                    <button 
+                    <button
                       className="btn btn-outline btn-sm"
                       onClick={() => {
                         const newQuestion = {
@@ -989,12 +1013,12 @@ function HeadManageTests() {
                       + Add Question
                     </button>
                   </div>
-                  
+
 
                   {editQuestions.length > 0 && (
                     <>
                       <div className="question-nav">
-                        <button 
+                        <button
                           className="btn btn-outline btn-sm"
                           onClick={() => setEditQIndex(Math.max(0, editQIndex - 1))}
                           disabled={editQIndex === 0}
@@ -1002,7 +1026,7 @@ function HeadManageTests() {
                           ← Previous
                         </button>
                         <span>Question {editQIndex + 1} of {editQuestions.length}</span>
-                        <button 
+                        <button
                           className="btn btn-outline btn-sm"
                           onClick={() => setEditQIndex(Math.min(editQuestions.length - 1, editQIndex + 1))}
                           disabled={editQIndex >= editQuestions.length - 1}
@@ -1050,8 +1074,8 @@ function HeadManageTests() {
                               </div>
                               {editQuestions[editQIndex].imageUrl && (
                                 <div className="image-preview">
-                                  <img 
-                                    src={editQuestions[editQIndex].imageUrl} 
+                                  <img
+                                    src={editQuestions[editQIndex].imageUrl}
                                     alt="Question illustration"
                                     onError={(e) => {
                                       e.target.style.display = 'none';
@@ -1065,7 +1089,7 @@ function HeadManageTests() {
                                   <div className="image-error" style={{display: 'none'}}>
                                     ❌ Failed to load image. Please check the URL.
                                   </div>
-                                  <button 
+                                  <button
                                     type="button"
                                     className="btn btn-outline btn-sm remove-image"
                                     onClick={() => {
@@ -1160,7 +1184,7 @@ function HeadManageTests() {
                           )}
 
                           <div className="question-actions">
-                            <button 
+                            <button
                               className="btn btn-danger btn-sm"
                               onClick={() => {
                                 if (window.confirm('Delete this question?')) {
@@ -1181,37 +1205,38 @@ function HeadManageTests() {
                   )}
 
                   <div className="modal-actions">
-                    <button 
+                    <button
                       className="btn btn-outline"
                       onClick={() => setEditStep(1)}
                     >
                       ← Back to Test Info
                     </button>
-                    <button 
+                    <button
                       className={`btn btn-primary ${editLoading ? 'btn-loading' : ''}`}
                       onClick={async () => {
                         try {
                           setEditLoading(true);
                           const totalMarks = editQuestions.reduce((sum, q) => sum + (q.marks || 1), 0);
-                          
+
                           // Update main test document
                           await updateDoc(doc(db, 'tests', editingTest.id), {
                             title: editTestData.title.trim(),
                             description: editTestData.description.trim(),
                             duration: formatDuration(editTestData.durationHours, editTestData.durationMinutes),
                             password: editTestData.password.trim(),
+                            domain: editTestData.branch?.trim() || editingTest.branch || 'Full Stack',
                             allowMultipleSubmissions: editTestData.allowMultipleSubmissions,
                             totalMarks: totalMarks,
                             updatedAt: serverTimestamp()
                           });
-                          
+
                           // Delete existing questions subcollection
                           const questionsRef = collection(db, 'tests', editingTest.id, 'questions');
                           const existingQuestions = await getDocs(questionsRef);
                           for (const questionDoc of existingQuestions.docs) {
                             await deleteDoc(questionDoc.ref);
                           }
-                          
+
                           // Add updated questions to subcollection
                           for (const question of editQuestions) {
                             const questionDoc = {
@@ -1223,20 +1248,20 @@ function HeadManageTests() {
                               marks: question.marks || 1,
                               imageUrl: question.imageUrl || ''
                             };
-                            
+
                             if (questionDoc.imageUrl) {
                               console.log('Saving question with image:', questionDoc.imageUrl);
                             }
                             await addDoc(questionsRef, questionDoc);
                           }
-                          
+
                           // Update local state
-                          setTests(tests.map(t => 
-                            t.id === editingTest.id 
-                              ? { ...t, ...editTestData, totalMarks, allowMultipleSubmissions: editTestData.allowMultipleSubmissions } 
+                          setTests(tests.map(t =>
+                            t.id === editingTest.id
+                              ? { ...t, ...editTestData, totalMarks, allowMultipleSubmissions: editTestData.allowMultipleSubmissions }
                               : t
                           ));
-                          
+
                           setEditingTest(null);
                           setError('');
                           alert('Test updated successfully!');
@@ -1281,14 +1306,14 @@ function HeadResults() {
         console.log('HeadResults: Loading tests for branch:', userDoc?.branch);
         console.log('HeadResults: User doc:', userDoc);
         const testsRef = collection(db, 'tests');
-        
+
         // Try branch-specific query first
         const testsQuery = query(testsRef, where('branch', '==', userDoc?.branch || 'Full Stack'));
         const testsSnap = await getDocs(testsQuery);
         let testsData = testsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-        
+
         console.log('HeadResults: Found tests by branch:', testsData.length);
-        
+
         // If no tests found by branch, try loading all tests
         if (testsData.length === 0) {
           console.log('HeadResults: No tests found by branch, loading all tests');
@@ -1296,7 +1321,7 @@ function HeadResults() {
           testsData = allTestsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
           console.log('HeadResults: Found all tests:', testsData.length);
         }
-        
+
         console.log('HeadResults: Final tests:', testsData);
         setTests(testsData);
       } catch (e) {
@@ -1306,7 +1331,7 @@ function HeadResults() {
         setLoading(false);
       }
     };
-    
+
     if (userDoc) {
       console.log('HeadResults: User doc available, loading tests');
       loadTests();
@@ -1322,18 +1347,18 @@ function HeadResults() {
       const resultsRef = collection(db, 'results');
       const resultsQuery = query(resultsRef, where('testId', '==', testId));
       const resultsSnap = await getDocs(resultsQuery);
-      
+
       // Process each result to ensure we have the candidate's name
       const resultsData = await Promise.all(
         resultsSnap.docs.map(async (resultDoc) => {
           const data = resultDoc.data();
           let candidateName = data.candidateName || '';
           let displayName = '';
-          
+
           // Process candidate name - handle emails stored in candidateName field
           console.log('DEBUG: Raw candidateName from database:', data.candidateName);
           console.log('DEBUG: CandidateId:', data.candidateId);
-          
+
           // If candidateName is already an email, extract the username part
           if (candidateName && candidateName.includes('@')) {
             candidateName = candidateName.split('@')[0];
@@ -1341,12 +1366,12 @@ function HeadResults() {
           } else if (data.candidateId) {
             // Try to get better name from user database
             console.log('DEBUG: Trying to get name from user database for:', data.candidateId);
-            
+
             try {
               // Try to get user by Firebase UID from 'user' collection
               let userDoc = await getDoc(doc(db, 'user', data.candidateId));
               let userData = null;
-              
+
               if (userDoc.exists()) {
                 userData = userDoc.data();
                 console.log('DEBUG: Found user in "user" collection:', userData);
@@ -1359,7 +1384,7 @@ function HeadResults() {
                   console.log('DEBUG: Found user in "users" collection:', userData);
                 }
               }
-              
+
               if (userData) {
                 // Try different possible field names for the user's name
                 const possibleNames = [
@@ -1369,7 +1394,7 @@ function HeadResults() {
                   userData.firstName,
                   userData.username
                 ];
-                
+
                 console.log('DEBUG: Available name fields:', {
                   name: userData.name,
                   displayName: userData.displayName,
@@ -1378,7 +1403,7 @@ function HeadResults() {
                   username: userData.username,
                   email: userData.email
                 });
-                
+
                 // Use the first available name
                 for (const name of possibleNames) {
                   if (name && name.trim()) {
@@ -1387,13 +1412,13 @@ function HeadResults() {
                     break;
                   }
                 }
-                
+
                 // If no name fields, try email prefix from user data
                 if (!candidateName && userData.email) {
                   candidateName = userData.email.includes('@') ? userData.email.split('@')[0] : userData.email;
                   console.log('DEBUG: Using email prefix from user data:', candidateName);
                 }
-                
+
                 // Update the result document with the better candidate name
                 if (candidateName && candidateName !== data.candidateName) {
                   await updateDoc(resultDoc.ref, {
@@ -1412,12 +1437,12 @@ function HeadResults() {
               candidateName = `Candidate ${data.candidateId.slice(-4)}`;
             }
           }
-          
+
           // Final fallback
           if (!candidateName) {
             candidateName = 'Unknown';
           }
-          
+
           // Format the display name - prioritize candidate name, but always show something useful
           if (candidateName && candidateName !== 'Unknown') {
             displayName = candidateName;
@@ -1426,17 +1451,37 @@ function HeadResults() {
           } else {
             displayName = 'Unknown Candidate';
           }
-          
-          return { 
-            id: resultDoc.id, 
+
+          return {
+            id: resultDoc.id,
             ...data,
             candidateName: candidateName,
             displayName: displayName
           };
         })
       );
-      
-      setSubmissions(resultsData);
+
+      // Filter to show only latest submission per candidate
+      const latestSubmissions = {};
+      resultsData.forEach(submission => {
+        const candidateId = submission.candidateId;
+        const submittedAt = submission.submittedAt?.toDate?.() || new Date(submission.submittedAt);
+
+        // If no submission for this candidate yet, or this one is newer
+        if (!latestSubmissions[candidateId] ||
+            submittedAt > (latestSubmissions[candidateId].submittedAt?.toDate?.() || new Date(latestSubmissions[candidateId].submittedAt))) {
+          latestSubmissions[candidateId] = submission;
+        }
+      });
+
+      // Convert to array and sort by submission time (newest first)
+      const filteredSubmissions = Object.values(latestSubmissions).sort((a, b) => {
+        const timeA = a.submittedAt?.toDate?.() || new Date(a.submittedAt);
+        const timeB = b.submittedAt?.toDate?.() || new Date(b.submittedAt);
+        return timeB - timeA;
+      });
+
+      setSubmissions(filteredSubmissions);
     } catch (e) {
       console.log('[Head:loadSubmissions:error]', e.code, e.message);
       setError(e.message || 'Failed to load submissions');
@@ -1455,10 +1500,10 @@ function HeadResults() {
         evaluatedAt: serverTimestamp(),
         evaluatedBy: 'head'
       });
-      
+
       // Update local state
-      setSubmissions(submissions.map(s => 
-        s.id === submissionId 
+      setSubmissions(submissions.map(s =>
+        s.id === submissionId
           ? { ...s, totalMarksAwarded: newScore, score: Math.round((newScore / (selectedTest.totalMarks || 100)) * 100), status: 'evaluated' }
           : s
       ));
@@ -1477,26 +1522,26 @@ function HeadResults() {
   //     `• All related data\n\n` +
   //     `This action is irreversible!`
   //   );
-  //   
+  //
   //   if (!confirmDelete) {return;}
-  //   
+  //
   //   try {
   //     // Delete test document
   //     await deleteDoc(doc(db, 'tests', testId));
-  //     
+  //
   //     // Delete all submissions for this test
   //     const resultsQuery = query(collection(db, 'results'), where('testId', '==', testId));
   //     const resultsSnap = await getDocs(resultsQuery);
   //     const deletePromises = resultsSnap.docs.map(doc => deleteDoc(doc.ref));
   //     await Promise.all(deletePromises);
-  //     
+  //
   //     // Update local state
   //     setTests(tests.filter(t => t.id !== testId));
   //     if (selectedTest?.id === testId) {
   //       setSelectedTest(null);
   //       setSubmissions([]);
   //     }
-  //     
+  //
   //     alert(`Test "${testTitle}" and all related data deleted successfully!`);
   //   } catch (e) {
   //     console.log('[Head:deleteTest:error]', e.code, e.message);
@@ -1516,9 +1561,9 @@ function HeadResults() {
   //     }
   //     return { hours: 0, minutes: 30 };
   //   };
-  //   
+  //
   //   const { hours, minutes } = parseDuration(test.duration || '30min');
-  //   
+  //
   //   setEditTestData({
   //     title: test.title || '',
   //     description: test.description || '',
@@ -1535,7 +1580,7 @@ function HeadResults() {
   // If viewing individual submission
   if (selectedSubmission) {
     return (
-      <HeadSubmissionDetailView 
+      <HeadSubmissionDetailView
         submission={selectedSubmission}
         test={selectedTest}
         onBack={() => setSelectedSubmission(null)}
@@ -1553,9 +1598,9 @@ function HeadResults() {
             <span className="badge badge-primary">{userDoc?.branch || 'Full Stack'}</span>
           </div>
         </div>
-        
+
         {error && <div className="alert alert-error">{error}</div>}
-        
+
         {loading ? (
           <div className="loading-results">
             <Loading message="Loading test results" subtext="Gathering candidate submissions and performance data" variant="inline" size="large" />
@@ -1605,39 +1650,7 @@ function HeadResults() {
             >
               <Icon name="notebook" size="small" /> Export Excel
             </button>
-            <button
-              className="btn btn-outline btn-sm"
-              onClick={async () => {
-                console.log('=== DEBUG TEST STRUCTURE ===');
-                console.log('Selected Test Object:', selectedTest);
-                console.log('Selected Test ID:', selectedTest.id);
-                console.log('Selected Test Questions:', selectedTest.questions);
-                
-                // Try to fetch test from Firestore
-                try {
-                  const testDoc = await getDoc(doc(db, 'tests', selectedTest.id));
-                  if (testDoc.exists()) {
-                    const testData = testDoc.data();
-                    console.log('Firestore Test Data:', testData);
-                    console.log('Available Fields:', Object.keys(testData));
-                    console.log('Questions Field:', testData.questions);
-                  } else {
-                    console.log('Test document not found in Firestore');
-                  }
-                } catch (error) {
-                  console.error('Error fetching test:', error);
-                }
-                
-                console.log('Sample Submission:', submissions[0]);
-                if (submissions[0]?.answers) {
-                  console.log('Answer Keys:', Object.keys(submissions[0].answers));
-                }
-                console.log('=== END DEBUG ===');
-              }}
-              title="Debug Test Structure"
-            >
-              🔍 Debug
-            </button>
+
             <button
               className={`btn btn-outline btn-sm ${exporting ? 'btn-loading' : ''}`}
               onClick={() => exportSubmissionsToPDF({ submissions, selectedTest, setLoading: setExporting, exportType: 'head' })}
@@ -1649,8 +1662,8 @@ function HeadResults() {
             </button>
           </div>
           <div className="refresh-actions">
-            <button 
-              className="btn btn-outline btn-sm" 
+            <button
+              className="btn btn-outline btn-sm"
               onClick={() => loadSubmissions(selectedTest.id)}
               disabled={loading}
             >
@@ -1660,7 +1673,7 @@ function HeadResults() {
           </div>
         </div>
       </div>
-      
+
       <div className="results-summary">
         <div className="summary-stats">
           <span className="stat-item">
@@ -1677,9 +1690,9 @@ function HeadResults() {
           </span>
         </div>
       </div>
-      
+
       {error && <div className="alert alert-error">{error}</div>}
-      
+
       {loading ? (
         <div className="loading-results">
           <Loading message="Loading detailed submissions" subtext="Processing candidate answers and calculating scores" variant="inline" size="large" />
@@ -1690,10 +1703,10 @@ function HeadResults() {
         <div className="submissions-grid">
           {submissions.map(result => {
             // Use the processed display name
-            
+
             // Determine the best name to display - prioritize actual names over IDs
             const displayName = result.candidateName || result.displayName || 'Unknown Candidate';
-            
+
             return (
               <div key={result.id} className="submission-card">
                 <div className="submission-info">
@@ -1721,7 +1734,7 @@ function HeadResults() {
                     {result.status || 'submitted'}
                   </span>
                 </div>
-                
+
                 <div className="score-input">
                   <label>Score:</label>
                   <input
@@ -1751,7 +1764,7 @@ function HeadResults() {
                       </div>
                     )}
                   </div>
-                  <button 
+                  <button
                     className="btn btn-sm btn-outline"
                     onClick={() => setSelectedSubmission(result)}
                     title="View Details"
@@ -1774,21 +1787,20 @@ function HeadUsers() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
-  const [sortOrder, setSortOrder] = useState('oldest');
+  const [sortOrder, setSortOrder] = useState('newest');
   const { user: currentUser, userDoc } = useFirebase();
 
   useEffect(() => {
     const fetchUsers = async () => {
       try {
         const usersRef = collection(db, 'user');
-        const q = query(usersRef, where('domain', '==', userDoc?.domain || ''));
-        const querySnapshot = await getDocs(q);
+        const querySnapshot = await getDocs(usersRef);
 
         const usersData = [];
         querySnapshot.forEach((doc) => {
           const userData = { id: doc.id, ...doc.data() };
-          // Only show candidates from same domain
-          if (userData.role === 'candidate') {
+          // Only show candidates (exclude admin and head)
+          if (userData.role === 'candidate' && userData.role !== 'admin' && userData.role !== 'head') {
             usersData.push(userData);
           }
         });
@@ -1822,7 +1834,7 @@ function HeadUsers() {
         approvedAt: serverTimestamp(),
         approvedBy: currentUser?.email
       });
-      
+
       // Update local state
       setUsers(users.map(u => u.id === userId ? { ...u, approved } : u));
       alert(approved ? 'User approved successfully!' : 'User approval revoked!');
@@ -1885,7 +1897,7 @@ function HeadUsers() {
         <div className="no-users">
           <div className="no-users-icon">👥</div>
           <h3>No Users Found</h3>
-          <p>No candidates in your domain yet.</p>
+          <p>No candidates registered yet.</p>
         </div>
       ) : (
         <div className="users-table-container">
@@ -1927,8 +1939,8 @@ function HeadUsers() {
                     </span>
                   </td>
                   <td>
-                    {user.createdAt?.toDate?.() ? 
-                      new Date(user.createdAt.toDate()).toLocaleDateString() : 
+                    {user.createdAt?.toDate?.() ?
+                      new Date(user.createdAt.toDate()).toLocaleDateString() :
                       'N/A'}
                   </td>
                 </tr>
@@ -1982,7 +1994,7 @@ function HeadSubmissionDetailView({ submission, test, onBack }) {
           return {
             ...question,
             candidateAnswer,
-            isCorrect: question.questionType === 'mcq' ? 
+            isCorrect: question.questionType === 'mcq' ?
               candidateAnswer === question.correctAnswer : null
           };
         });
@@ -1990,7 +2002,7 @@ function HeadSubmissionDetailView({ submission, test, onBack }) {
         // Initialize marks distribution
         const initialMarks = {};
         let calculatedTotal = 0;
-        
+
         questionsWithAnswers.forEach(question => {
           // Check if marks already exist in submission
           const existingMarks = submission.questionMarks?.[question.id];
@@ -2020,12 +2032,12 @@ function HeadSubmissionDetailView({ submission, test, onBack }) {
     const numericMarks = Math.max(0, parseFloat(marks) || 0);
     const maxMarks = questions.find(q => q.id === questionId)?.marks || 1;
     const finalMarks = Math.min(numericMarks, maxMarks);
-    
+
     setMarksDistribution(prev => ({
       ...prev,
       [questionId]: finalMarks
     }));
-    
+
     // Recalculate total
     const newTotal = Object.values({
       ...marksDistribution,
@@ -2089,12 +2101,12 @@ function HeadSubmissionDetailView({ submission, test, onBack }) {
               <strong>Submitted:</strong> {formatDateTime(submission.submittedAt)}
             </div>
             <div className="meta-item">
-              <strong>Score:</strong> {submission.totalMarksAwarded !== undefined ? 
-                `${submission.totalMarksAwarded}/${submission.maxPossibleMarks || 'N/A'} marks` : 
+              <strong>Score:</strong> {submission.totalMarksAwarded !== undefined ?
+                `${submission.totalMarksAwarded}/${submission.maxPossibleMarks || 'N/A'} marks` :
                 submission.score !== undefined ? `${submission.score}%` : 'Not graded'}
             </div>
             <div className="meta-item">
-              <strong>Status:</strong> 
+              <strong>Status:</strong>
               <span className={`badge ${submission.status === 'evaluated' ? 'badge-success' : 'badge-warning'}`}>
                 {submission.status || 'submitted'}
               </span>
@@ -2105,11 +2117,11 @@ function HeadSubmissionDetailView({ submission, test, onBack }) {
           <div className="marks-total-display">
             <span className="marks-total-label">Total Marks:</span>
             <span className="marks-total-value">{totalMarks} / {questions.reduce((sum, q) => sum + (q.marks || 1), 0)}</span>
-            <span className="marks-percentage">({questions.reduce((sum, q) => sum + (q.marks || 1), 0) > 0 ? 
+            <span className="marks-percentage">({questions.reduce((sum, q) => sum + (q.marks || 1), 0) > 0 ?
               Math.round((totalMarks / questions.reduce((sum, q) => sum + (q.marks || 1), 0)) * 100) : 0}%)</span>
           </div>
           <div className="marks-actions">
-            <button 
+            <button
               className={`btn btn-primary ${saving ? 'btn-loading' : ''}`}
               onClick={saveMarksDistribution}
               disabled={saving}
@@ -2171,8 +2183,8 @@ function HeadSubmissionDetailView({ submission, test, onBack }) {
               {/* Question Image */}
               {question.imageUrl && (
                 <div className="question-image">
-                  <img 
-                    src={question.imageUrl} 
+                  <img
+                    src={question.imageUrl}
                     alt="Question illustration"
                     style={{
                       maxWidth: '100%',
@@ -2202,12 +2214,12 @@ function HeadSubmissionDetailView({ submission, test, onBack }) {
                       </span>
                     </div>
                   </div>
-                  
+
                   <div className="question-options">
                     <h4>All Options:</h4>
                     {question.options.map((option, optIndex) => (
-                      <div 
-                        key={optIndex} 
+                      <div
+                        key={optIndex}
                         className={`option ${
                           option === question.correctAnswer ? 'correct-option' : ''
                         } ${

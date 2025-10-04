@@ -140,7 +140,7 @@ function AdminUsers() {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterRole, setFilterRole] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
-  const [sortOrder, setSortOrder] = useState('oldest'); // 'newest' or 'oldest'
+  const [sortOrder, setSortOrder] = useState('newest'); // 'newest' or 'oldest'
   const [currentPage, setCurrentPage] = useState(1);
   const { user: currentUser, userDoc } = useFirebase();
   const usersPerPage = 10;
@@ -184,7 +184,7 @@ function AdminUsers() {
         setLoading(false);
       } catch (err) {
         console.error('Error loading users:', err);
-        
+
         // Retry on network errors
         if (retryCount < 3 && (err.code === 'unavailable' || err.message?.includes('QUIC') || err.message?.includes('network'))) {
           console.log(`Retrying... Attempt ${retryCount + 1}/3`);
@@ -255,14 +255,14 @@ function AdminUsers() {
         role: newRole,
         updatedAt: serverTimestamp()
       };
-      
+
       // Auto-approve admin and head roles
       if (newRole === 'admin' || newRole === 'head') {
         updateData.approved = true;
         updateData.approvedAt = serverTimestamp();
         updateData.approvedBy = currentUser?.email;
       }
-      
+
       if (newRole === 'head' && newDomain) {
         updateData.domain = newDomain;
       } else if (newRole !== 'head') {
@@ -939,7 +939,28 @@ function AdminTests() {
 
         return submissionData;
       }));
-      setSubmissions(submissionsData);
+
+      // Filter to show only latest submission per candidate
+      const latestSubmissions = {};
+      submissionsData.forEach(submission => {
+        const candidateId = submission.candidateId;
+        const submittedAt = submission.submittedAt?.toDate?.() || new Date(submission.submittedAt);
+
+        // If no submission for this candidate yet, or this one is newer
+        if (!latestSubmissions[candidateId] ||
+            submittedAt > (latestSubmissions[candidateId].submittedAt?.toDate?.() || new Date(latestSubmissions[candidateId].submittedAt))) {
+          latestSubmissions[candidateId] = submission;
+        }
+      });
+
+      // Convert to array and sort by submission time (newest first)
+      const filteredSubmissions = Object.values(latestSubmissions).sort((a, b) => {
+        const timeA = a.submittedAt?.toDate?.() || new Date(a.submittedAt);
+        const timeB = b.submittedAt?.toDate?.() || new Date(b.submittedAt);
+        return timeB - timeA;
+      });
+
+      setSubmissions(filteredSubmissions);
     } catch (err) {
       setError('Failed to load submissions');
     }
@@ -1968,14 +1989,13 @@ function AdminMonitoring() {
       // Store the unsubscribe function for cleanup
       return unsubscribeParticipants;
     } catch (err) {
-      console.error('Error loading participants:', err);
+
       setError('Failed to load participants');
     }
   };
 
   const loadAllMonitoringData = async (testId, participantsData) => {
-    console.log('🔍 ADMIN MONITORING: Loading monitoring data for test:', testId);
-    console.log('🔍 ADMIN MONITORING: Participants:', participantsData.map(p => ({ id: p.id, candidateId: p.candidateId, name: p.candidateName })));
+
 
     try {
       const monitoringPromises = participantsData.map(async (participant) => {
@@ -2216,13 +2236,10 @@ function AdminMonitoring() {
               </span>
             </div>
             <div className="test-details">
-              <div className="test-meta">
-                <span>Domain: {test.domain}</span>
-                <span>Participants: {test.participantCount || 0}</span>
-              </div>
+
               <div className="monitoring-stats">
                 <span className="stat">
-                  <span className="stat-icon"><Icon name="computer" size="small" /></span>
+                  <span className="stat-icon">👁️</span>
                   <span>Click to monitor</span>
                 </span>
               </div>

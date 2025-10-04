@@ -725,21 +725,21 @@
   .dashboard-header {
     padding: 1rem;
   }
-  
+
   .header-content {
     flex-direction: column;
     gap: 1rem;
     align-items: flex-start;
   }
-  
+
   .dashboard-content {
     padding: 1rem;
   }
-  
+
   .dashboard-main {
     padding: 1rem;
   }
-  
+
   .create-test-header,
   .manage-header,
   .results-header {
@@ -747,40 +747,40 @@
     gap: 1rem;
     align-items: flex-start;
   }
-  
+
   .form-row {
     grid-template-columns: 1fr;
     gap: 1rem;
   }
-  
+
   .questions-header {
     flex-direction: column;
     gap: 1rem;
     align-items: flex-start;
   }
-  
+
   .questions-footer {
     flex-direction: column;
     gap: 1rem;
     align-items: stretch;
   }
-  
+
   .question-nav {
     justify-content: center;
   }
-  
+
   .test-info {
     flex-direction: column;
     gap: 1rem;
     align-items: flex-start;
   }
-  
+
   .submission-info {
     flex-direction: column;
     gap: 1rem;
     align-items: flex-start;
   }
-  
+
   .score-input {
     flex-wrap: wrap;
   }
@@ -805,7 +805,7 @@
 .edit-modal {
   background: white;
   border-radius: 20px;
-  box-shadow: 
+  box-shadow:
     0 25px 50px -12px rgba(0, 0, 0, 0.4),
     0 0 0 1px rgba(255, 255, 255, 0.1);
   width: 100%;
@@ -1045,38 +1045,38 @@
     align-items: center;
     justify-content: center;
   }
-  
+
   .edit-modal {
     max-width: 100%;
     max-height: 90vh;
     width: 100%;
     margin: auto;
   }
-  
+
   .modal-header {
     padding: 1rem 1.5rem;
   }
-  
+
   .modal-body {
     padding: 1.5rem;
   }
-  
+
   .form-row {
     grid-template-columns: 1fr;
   }
-  
+
   .questions-header {
     flex-direction: column;
     gap: 1rem;
     align-items: stretch;
   }
-  
+
   .question-nav {
     flex-direction: column;
     gap: 0.5rem;
     text-align: center;
   }
-  
+
   .modal-actions {
     flex-direction: column;
     gap: 1rem;
@@ -1087,16 +1087,16 @@
   .edit-modal-overlay {
     padding: 0.5rem;
   }
-  
+
   .edit-modal {
     max-height: 95vh;
     border-radius: 12px;
   }
-  
+
   .modal-header {
     padding: 1rem;
   }
-  
+
   .modal-body {
     padding: 1rem;
   }
@@ -1636,26 +1636,26 @@
     gap: 1rem;
     align-items: stretch;
   }
-  
+
   .marks-total-display {
     justify-content: center;
     text-align: center;
   }
-  
+
   .marks-actions {
     justify-content: center;
   }
-  
+
   .submission-question-card .question-header {
     flex-direction: column;
     gap: 1rem;
   }
-  
+
   .marks-input-section {
     align-items: stretch;
     min-width: auto;
   }
-  
+
   .marks-input-container {
     align-items: center;
   }

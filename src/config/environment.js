@@ -54,8 +54,13 @@ export const appConfig = {
   name: process.env.REACT_APP_APP_NAME || 'Testify',
   version: process.env.REACT_APP_APP_VERSION || '1.0.0',
   environment: process.env.NODE_ENV || 'development',
-  superAdminEmail: process.env.REACT_APP_SUPER_ADMIN_EMAIL || (process.env.NODE_ENV === 'development' ? 'mrjaaduji@gmail.com' : 'admin@testify.com')
+  superAdminEmail: process.env.REACT_APP_SUPER_ADMIN_EMAIL || 'admin@testify.com'
 };
+
+// Validate super admin email is set
+if (!appConfig.superAdminEmail && process.env.NODE_ENV === 'production') {
+  throw new Error('REACT_APP_SUPER_ADMIN_EMAIL must be set in production');
+}
 
 // Feature Flags
 export const featureFlags = {

@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { collection, getDocs, query, where, doc, updateDoc, getDoc } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, query, updateDoc, where } from 'firebase/firestore';
+import { useEffect, useState } from 'react';
 
 import { useFirebase } from '../../context/FirebaseContext';
 import { db } from '../../firebase';
@@ -20,12 +20,12 @@ const Leaderboard = () => {
   const [publishedLeaderboards, setPublishedLeaderboards] = useState({});
   const [publishing, setPublishing] = useState(false);
   const { userDoc } = useFirebase();
-  
+
   const isAdmin = userDoc?.role === 'admin';
   const isHead = userDoc?.role === 'head';
   const isCandidate = userDoc?.role === 'candidate' || !userDoc?.role;
   const canPublish = isAdmin || isHead;
-  
+
   // Debug logging for permissions - DISABLED
   // console.log('User permissions:', {
   //   role: userDoc?.role,
@@ -42,12 +42,12 @@ const Leaderboard = () => {
     if (!userDoc) {
       return;
     }
-    
+
     const loadTests = async () => {
       try {
         setLoading(true);
         setError(''); // Clear any previous errors
-        
+
         // Load tests
         const testsRef = collection(db, 'tests');
         const snapshot = await getDocs(testsRef);
@@ -55,13 +55,17 @@ const Leaderboard = () => {
           id: doc.id,
           ...doc.data()
         }));
-        
+
         // Filter tests based on user role
         let filteredTests = testsData;
-        if (userDoc?.role === 'head' && userDoc?.domain) {
-          filteredTests = testsData.filter(test => test.domain === userDoc.domain);
+        if (userDoc?.role === 'head') {
+          // Head can see tests from their domain or branch
+          const headDomain = userDoc?.domain || userDoc?.branch || 'Full Stack';
+          filteredTests = testsData.filter(test => 
+            test.domain === headDomain || test.branch === headDomain
+          );
         }
-        
+
         // Extract publication status from tests data
         const publishedData = {};
         filteredTests.forEach(test => {
@@ -76,7 +80,7 @@ const Leaderboard = () => {
             };
           }
         });
-        
+
         setTests(filteredTests);
         setPublishedLeaderboards(publishedData);
         setLoading(false);
@@ -97,17 +101,17 @@ const Leaderboard = () => {
       setSelectedTest(test);
       setError(''); // Clear any errors
       setLeaderboardData([]); // Clear previous data
-      
+
       // Fetch all submissions for this test
       const resultsQuery = query(
         collection(db, 'results'),
         where('testId', '==', test.id),
         where('status', '==', 'evaluated')
       );
-      
+
       const snapshot = await getDocs(resultsQuery);
       Logger.debug('Loading leaderboard data', { testTitle: test.title, submissionCount: snapshot.docs.length });
-      
+
       const submissions = await Promise.all(snapshot.docs.map(async (doc) => {
         const data = doc.data();
         // console.log('Raw submission data:', {
@@ -119,14 +123,14 @@ const Leaderboard = () => {
         //   testTotalMarks: test.totalMarks,
         //   questionMarks: data.questionMarks
         // });
-        
+
         // Try to get better candidate name
         let candidateName = data.candidateName || 'Unknown';
         if (data.candidateId) {
           try {
             // Try multiple approaches to get user data
             let userData = null;
-            
+
             // First try: query by uid field
             try {
               const userQuery = query(
@@ -140,7 +144,7 @@ const Leaderboard = () => {
             } catch (queryError) {
               Logger.debug('Query by uid failed, trying direct document access');
             }
-            
+
             // Second try: direct document access
             if (!userData) {
               try {
@@ -153,7 +157,7 @@ const Leaderboard = () => {
                 Logger.debug('Direct document access failed');
               }
             }
-            
+
             // Use the best available name
             if (userData) {
               candidateName = userData.name || userData.displayName || userData.fullName || userData.firstName || candidateName;
@@ -162,11 +166,11 @@ const Leaderboard = () => {
             Logger.debug('Could not fetch user data for candidate', { candidateId: data.candidateId }, error);
           }
         }
-        
+
         // Calculate correct marks and validate data
         let maxPossibleMarks = data.maxPossibleMarks || test.totalMarks || 100;
         let totalMarksAwarded = data.totalMarksAwarded || 0;
-        
+
         // Try to recalculate from individual question marks if available
         if (data.questionMarks && typeof data.questionMarks === 'object') {
           const questionMarksArray = Object.values(data.questionMarks);
@@ -176,34 +180,34 @@ const Leaderboard = () => {
               const numMark = parseFloat(mark) || 0;
               return sum + numMark;
             }, 0);
-            
+
             Logger.debug('Recalculating marks from questions', { calculatedTotal, originalTotal: totalMarksAwarded });
             totalMarksAwarded = calculatedTotal;
           }
         }
-        
+
         // If we still have invalid data, try to get correct max marks from test
         if (test.totalMarks && test.totalMarks > 0) {
           maxPossibleMarks = test.totalMarks;
         }
-        
+
         // Final validation - ensure awarded marks don't exceed maximum
         if (totalMarksAwarded > maxPossibleMarks) {
-          Logger.warn('Invalid marks detected, capping to maximum', { 
-            candidateName, 
-            totalMarksAwarded, 
-            maxPossibleMarks 
+          Logger.warn('Invalid marks detected, capping to maximum', {
+            candidateName,
+            totalMarksAwarded,
+            maxPossibleMarks
           });
           totalMarksAwarded = maxPossibleMarks;
         }
-        
+
         // Ensure minimum values
         totalMarksAwarded = Math.max(0, totalMarksAwarded);
         maxPossibleMarks = Math.max(1, maxPossibleMarks);
-        
+
         // Recalculate score percentage
         const score = Math.round((totalMarksAwarded / maxPossibleMarks) * 100);
-        
+
         const finalResult = {
           id: doc.id,
           candidateName,
@@ -215,16 +219,16 @@ const Leaderboard = () => {
           timeTaken: data.timeTaken || 0,
           questionMarks: data.questionMarks || {}
         };
-        
+
         console.log('Final processed data:', {
           candidateName: finalResult.candidateName,
           marks: `${finalResult.totalMarksAwarded}/${finalResult.maxPossibleMarks}`,
           score: `${finalResult.score}%`
         });
-        
+
         return finalResult;
       }));
-      
+
       // Sort by total marks (descending) and then by time taken (ascending)
       const sortedSubmissions = submissions.sort((a, b) => {
         if (b.totalMarksAwarded !== a.totalMarksAwarded) {
@@ -232,13 +236,13 @@ const Leaderboard = () => {
         }
         return a.timeTaken - b.timeTaken;
       });
-      
+
       // Add rank to each submission
       const rankedSubmissions = sortedSubmissions.map((submission, index) => ({
         ...submission,
         rank: index + 1
       }));
-      
+
       setLeaderboardData(rankedSubmissions);
       setLoadingLeaderboard(false);
     } catch (err) {
@@ -251,21 +255,21 @@ const Leaderboard = () => {
   // Calculate pie chart data
   const getPieChartData = () => {
     if (leaderboardData.length === 0) {return [];}
-    
+
     const ranges = [
       { label: 'Excellent (90-100%)', min: 90, max: 100, color: '#10b981', count: 0 },
       { label: 'Good (70-89%)', min: 70, max: 89, color: '#3b82f6', count: 0 },
       { label: 'Average (50-69%)', min: 50, max: 69, color: '#f59e0b', count: 0 },
       { label: 'Below Average (0-49%)', min: 0, max: 49, color: '#ef4444', count: 0 }
     ];
-    
+
     leaderboardData.forEach(submission => {
       // Use the already validated score instead of recalculating
       const percentage = submission.score;
       const range = ranges.find(r => percentage >= r.min && percentage <= r.max);
       if (range) {range.count++;}
     });
-    
+
     return ranges.filter(range => range.count > 0);
   };
 
@@ -280,32 +284,21 @@ const Leaderboard = () => {
 
   // Toggle leaderboard publication
   const toggleLeaderboardPublication = async (testId, testTitle) => {
-    console.log('Toggle publication called:', {
-      testId,
-      testTitle,
-      canPublish,
-      userRole: userDoc?.role,
-      isHead,
-      isAdmin
-    });
-    
     if (!canPublish) {
-      // console.warn('User does not have publish permissions');
+      alert('You do not have permission to publish/unpublish leaderboards');
       return;
     }
-    
+
     try {
       setPublishing(true);
-      setError(''); // Clear any previous errors
-      
+      setError('');
+
       const isCurrentlyPublished = publishedLeaderboards[testId]?.published;
       const newStatus = !isCurrentlyPublished;
-      
-      // Use the tests collection to store publication status instead
+
       const testRef = doc(db, 'tests', testId);
-      
+
       if (newStatus) {
-        // Publishing - set the field to true
         await updateDoc(testRef, {
           leaderboardPublished: true,
           publishedBy: userDoc?.uid || 'unknown',
@@ -313,14 +306,13 @@ const Leaderboard = () => {
           publisherRole: userDoc?.role || 'unknown'
         });
       } else {
-        // Unpublishing - remove the field or set to false
         await updateDoc(testRef, {
           leaderboardPublished: false,
           unpublishedBy: userDoc?.uid || 'unknown',
           unpublishedAt: new Date()
         });
       }
-      
+
       // Update local state
       if (newStatus) {
         setPublishedLeaderboards(prev => ({
@@ -342,18 +334,18 @@ const Leaderboard = () => {
           return updated;
         });
       }
-      
+
       setPublishing(false);
-      
-      // Show success message
+
       const action = newStatus ? 'published' : 'unpublished';
-      // console.log(`Leaderboard ${action} successfully for test: ${testTitle}`);
-      
+      alert(`Leaderboard ${action} successfully!`);
+
     } catch (error) {
-      // console.error('Error updating leaderboard publication:', error);
       const isCurrentlyPublished = publishedLeaderboards[testId]?.published;
       const attemptedAction = !isCurrentlyPublished ? 'publish' : 'unpublish';
-      setError(`Failed to ${attemptedAction} leaderboard: ${error.message}`);
+      const errorMsg = `Failed to ${attemptedAction} leaderboard: ${error.message}`;
+      setError(errorMsg);
+      alert(errorMsg);
       setPublishing(false);
     }
   };
@@ -377,19 +369,22 @@ const Leaderboard = () => {
         try {
           setLoading(true);
           setError('');
-          
+
           const testsRef = collection(db, 'tests');
           const snapshot = await getDocs(testsRef);
           const testsData = snapshot.docs.map(doc => ({
             id: doc.id,
             ...doc.data()
           }));
-          
+
           let filteredTests = testsData;
-          if (userDoc?.role === 'head' && userDoc?.domain) {
-            filteredTests = testsData.filter(test => test.domain === userDoc.domain);
+          if (userDoc?.role === 'head') {
+            const headDomain = userDoc?.domain || userDoc?.branch || 'Full Stack';
+            filteredTests = testsData.filter(test => 
+              test.domain === headDomain || test.branch === headDomain
+            );
           }
-          
+
           const publishedData = {};
           filteredTests.forEach(test => {
             if (test.leaderboardPublished === true) {
@@ -403,7 +398,7 @@ const Leaderboard = () => {
               };
             }
           });
-          
+
           setTests(filteredTests);
           setPublishedLeaderboards(publishedData);
           setLoading(false);
@@ -421,10 +416,10 @@ const Leaderboard = () => {
   const renderPieChart = () => {
     const data = getPieChartData();
     if (data.length === 0) {return null;}
-    
+
     const total = data.reduce((sum, item) => sum + item.count, 0);
     let cumulativePercentage = 0;
-    
+
     return (
       <div className="pie-chart-container">
         <div className="pie-chart">
@@ -434,7 +429,7 @@ const Leaderboard = () => {
               const strokeDasharray = `${percentage} ${100 - percentage}`;
               const strokeDashoffset = -cumulativePercentage;
               cumulativePercentage += percentage;
-              
+
               return (
                 <circle
                   key={index}
@@ -457,12 +452,12 @@ const Leaderboard = () => {
             <span className="pie-label">Total</span>
           </div>
         </div>
-        
+
         <div className="pie-legend">
           {data.map((item, index) => (
             <div key={index} className="legend-item">
-              <div 
-                className="legend-color" 
+              <div
+                className="legend-color"
                 style={{ backgroundColor: item.color }}
                />
               <span className="legend-text">
@@ -490,7 +485,7 @@ const Leaderboard = () => {
           <Icon name="fire" size="large" />
           <h3>Error Loading Leaderboard</h3>
           <p>{error}</p>
-          <button 
+          <button
             className="btn btn-primary"
             onClick={retryLoading}
             style={{ marginTop: '1rem' }}
@@ -513,12 +508,12 @@ const Leaderboard = () => {
             <h2>Leaderboards Coming Soon!</h2>
             <p>Your instructors will publish test leaderboards here when they're ready.</p>
           </div>
-          
+
           <div className="video-container">
-            <video 
-              autoPlay 
-              loop 
-              muted 
+            <video
+              autoPlay
+              loop
+              muted
               playsInline
               className="interface-video"
             >
@@ -533,7 +528,7 @@ const Leaderboard = () => {
 
   return (
     <div className="leaderboard-container">
-      
+
 
       {!selectedTest ? (
         <div className="test-selection">
@@ -541,10 +536,10 @@ const Leaderboard = () => {
             {tests.map(test => {
               const isPublished = isLeaderboardPublished(test.id);
               const canViewLeaderboard = canPublish || isPublished;
-              
+
               return (
-                <div 
-                  key={test.id} 
+                <div
+                  key={test.id}
                   className={`test-card ${!canViewLeaderboard ? 'test-card-disabled' : ''}`}
                   onClick={() => canViewLeaderboard && loadLeaderboard(test)}
                 >
@@ -617,20 +612,20 @@ const Leaderboard = () => {
               );
             })}
           </div>
-          
+
           {tests.length === 0 && (
             <div className="video-placeholder">
               <div className="video-text-section">
-                <Icon name="notebook" size="2xl" />
+
                 <h2>No Tests Available</h2>
                 <p>No tests found for leaderboard display. Tests will appear here once they are created.</p>
               </div>
-              
+
               <div className="video-container">
-                <video 
-                  autoPlay 
-                  loop 
-                  muted 
+                <video
+                  autoPlay
+                  loop
+                  muted
                   playsInline
                   className="interface-video"
                 >
@@ -640,7 +635,7 @@ const Leaderboard = () => {
               </div>
             </div>
           )}
-          
+
           {isCandidate && tests.length > 0 && tests.every(test => !isLeaderboardPublished(test.id)) && (
             <div className="no-published-leaderboards">
               <Icon name="leaderboard" size="2xl" />
@@ -652,7 +647,7 @@ const Leaderboard = () => {
       ) : (
         <div className="leaderboard-content">
           <div className="leaderboard-nav">
-            <button 
+            <button
               className="btn btn-outline"
               onClick={() => {
                 setSelectedTest(null);
@@ -662,7 +657,7 @@ const Leaderboard = () => {
               <Icon name="leaderboard" size="small" />
               Back to Tests
             </button>
-            
+
             <div className="test-info-header">
               <h2>{selectedTest.title}</h2>
               <div className="test-meta">
@@ -687,8 +682,8 @@ const Leaderboard = () => {
                       <span className="stat-number">{leaderboardData.length}</span>
                     </div>
                   </div>
-                  
-                  
+
+
                   <div className="stat-card">
                     <Icon name="success" size="xl" />
                     <div className="stat-content">
@@ -699,7 +694,7 @@ const Leaderboard = () => {
                     </div>
                   </div>
                 </div>
-                
+
                 {/* Pie Chart */}
                 <div className="chart-section">
                   <h3>Performance Distribution</h3>
@@ -755,7 +750,7 @@ const Leaderboard = () => {
                               {submission.totalMarksAwarded}/{submission.maxPossibleMarks}
                             </span>
                           </td>
-                          
+
                           <td>
                             <span className="submission-date">
                               {formatDateTime(submission.submittedAt)}
@@ -766,7 +761,7 @@ const Leaderboard = () => {
                     </tbody>
                   </table>
                 </div>
-                
+
                 {leaderboardData.length === 0 && (
                   <div className="no-submissions">
                     <Icon name="notebook" size="2xl" />

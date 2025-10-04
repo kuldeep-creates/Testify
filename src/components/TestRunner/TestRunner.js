@@ -1,4 +1,4 @@
-import { addDoc, collection, doc, getDoc, getDocs, query, serverTimestamp, updateDoc, where } from 'firebase/firestore';
+import { addDoc, collection, doc, getDoc, getDocs, query, serverTimestamp, where } from 'firebase/firestore';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 
@@ -61,17 +61,10 @@ const getFileExtension = (language) => {
     'java': 'java',
     'cpp': 'cpp',
     'c': 'c',
-    'csharp': 'cs',
-    'php': 'php',
-    'ruby': 'rb',
-    'go': 'go',
-    'rust': 'rs',
-    'typescript': 'ts',
     'html': 'html',
     'css': 'css',
     'sql': 'sql',
-    'bash': 'sh',
-    'powershell': 'ps1'
+
   };
   return extensions[language.toLowerCase()] || 'txt';
 };
@@ -82,12 +75,8 @@ const getCodePlaceholder = (language) => {
     'javascript': '// Write your JavaScript code here\nfunction solution() {\n    // Your code here\n    return result;\n}',
     'python': '# Write your Python code here\ndef solution():\n    # Your code here\n    return result',
     'java': '// Write your Java code here\npublic class Solution {\n    public static void main(String[] args) {\n        // Your code here\n    }\n}',
-    'cpp': '// Write your C++ code here\n#include <iostream>\nusing namespace std;\n\nint main() {\n    // Your code here\n    return 0;\n}',
+    'cpp': '// Write your C++ code here\n#include <iostream>\nusing namespace std;\n\nint main() {\n    \n\n\n    return 0;\n}',
     'c': '// Write your C code here\n#include <stdio.h>\n\nint main() {\n    // Your code here\n    return 0;\n}',
-    'csharp': '// Write your C# code here\nusing System;\n\nclass Program {\n    static void Main() {\n        // Your code here\n    }\n}',
-    'php': '<?php\n// Write your PHP code here\nfunction solution() {\n    // Your code here\n    return $result;\n}\n?>',
-    'ruby': '# Write your Ruby code here\ndef solution\n    # Your code here\n    return result\nend',
-    'go': '// Write your Go code here\npackage main\n\nimport "fmt"\n\nfunc main() {\n    // Your code here\n}',
     'html': '<!-- Write your HTML code here -->\n<!DOCTYPE html>\n<html>\n<head>\n    <title>Solution</title>\n</head>\n<body>\n    <!-- Your code here -->\n</body>\n</html>',
     'css': '/* Write your CSS code here */\n.container {\n    /* Your styles here */\n}',
     'sql': '-- Write your SQL code here\nSELECT * FROM table_name\nWHERE condition;'
@@ -102,11 +91,6 @@ const getLanguageInfo = (language) => {
     'python': { name: 'Python', color: '#3776ab', icon: '🐍' },
     'java': { name: 'Java', color: '#ed8b00', icon: '☕' },
     'cpp': { name: 'C++', color: '#00599c', icon: '⚡' },
-    'c': { name: 'C', color: '#a8b9cc', icon: '🔧' },
-    'csharp': { name: 'C#', color: '#239120', icon: '🔷' },
-    'php': { name: 'PHP', color: '#777bb4', icon: '🐘' },
-    'ruby': { name: 'Ruby', color: '#cc342d', icon: '💎' },
-    'go': { name: 'Go', color: '#00add8', icon: '🐹' },
     'html': { name: 'HTML', color: '#e34f26', icon: '🌐' },
     'css': { name: 'CSS', color: '#1572b6', icon: '🎨' },
     'sql': { name: 'SQL', color: '#336791', icon: '🗃️' }
@@ -121,10 +105,7 @@ const availableLanguages = [
   'java',
   'cpp',
   'c',
-  'csharp',
-  'php',
-  'ruby',
-  'go',
+
   'html',
   'css',
   'sql'
@@ -153,7 +134,7 @@ function TestRunner() {
   const [netStatus, setNetStatus] = useState('checking');
   const [showBlockedCard, setShowBlockedCard] = useState(false);
   const [blockMessage, setBlockMessage] = useState('');
-  const [selectedLanguage, setSelectedLanguage] = useState('javascript');
+  const [selectedLanguage, setSelectedLanguage] = useState('cpp');
 
   // Ref to track if auto-submit has been triggered to prevent multiple submissions
   const autoSubmitTriggered = useRef(false);
@@ -308,30 +289,33 @@ function TestRunner() {
       Logger.debug('Submitting test', { hasAnswers: !!userAnswers, answerCount: Object.keys(userAnswers).length });
 
       // Handle submission based on multiple submission setting
-      // Enforce max 3 attempts when multiple submissions are allowed
-      if (allowMultiple && existingSubmissions.size >= 3) {
-        throw new Error('Maximum attempts reached. You have already submitted this test 3 times.');
-      } else if (existingSubmissions.size > 0 && allowMultiple) {
-        // Update the latest existing submission
-        const latestSubmission = existingSubmissions.docs[existingSubmissions.docs.length - 1];
-        await updateDoc(latestSubmission.ref, {
-          ...payload,
-          submissionNumber: existingSubmissions.size + 1,
-          previousSubmissionId: latestSubmission.id,
-          updatedAt: new Date()
-        });
-        Logger.info('Updated existing submission', { submissionId: latestSubmission.id });
-        showSuccess(`Test re-submitted successfully! (Attempt #${existingSubmissions.size + 1})`);
-      } else if (existingSubmissions.size > 0 && !allowMultiple) {
+      if (existingSubmissions.size > 0 && !allowMultiple) {
         // Multiple submissions not allowed, show error
         throw new Error('You have already submitted this test. Multiple submissions are not allowed.');
+      }
+
+      // Check max attempts for multiple submissions (limit: 3)
+      if (allowMultiple && existingSubmissions.size >= 3) {
+        throw new Error('Maximum attempts reached. You have already submitted this test 3 times.');
+      }
+
+      // Create new submission (always create new, never update)
+      const submissionNumber = existingSubmissions.size + 1;
+      const docRef = await addDoc(collection(db, 'results'), {
+        ...payload,
+        submissionNumber: submissionNumber,
+        attemptNumber: submissionNumber, // For clarity
+        isRetake: existingSubmissions.size > 0
+      });
+
+      Logger.info('Test submitted successfully', {
+        submissionId: docRef.id,
+        attemptNumber: submissionNumber
+      });
+
+      if (submissionNumber > 1) {
+        showSuccess(`Test re-submitted successfully! (Attempt #${submissionNumber})`);
       } else {
-        // First submission
-        const docRef = await addDoc(collection(db, 'results'), {
-          ...payload,
-          submissionNumber: 1
-        });
-        Logger.info('Test submitted successfully', { submissionId: docRef.id });
         showSuccess('Test submitted successfully!');
       }
 
@@ -558,27 +542,13 @@ function TestRunner() {
       }
 
       try {
-        console.log('[TestRunner] Starting to fetch test:', testId);
-        console.log('[TestRunner] User:', user?.uid);
-
         const test = await fetchTestWithQuestions(testId);
 
-        console.log('[TestRunner] Test fetched:', test ? 'Success' : 'Not found');
-
         if (!test) {
-          console.error('[TestRunner] Test not found');
           setErrMsg('Test not found. Please check the test ID and try again.');
           setIsLoading(false);
           return;
         }
-
-        console.log('[TestRunner] Test data loaded:', {
-          id: test.id,
-          title: test.title,
-          hasQuestions: !!test.questions,
-          questionCount: test.questions?.length || 0,
-          hasPassword: !!test.password
-        });
 
         Logger.debug('Test data loaded', {
           hasQuestions: !!test.questions,
@@ -589,20 +559,12 @@ function TestRunner() {
 
         // Check if password is required first
         if (test.password && test.password.trim() !== '') {
-          console.log('[TestRunner] Password required for test');
           setShowPasswordPrompt(true);
         } else {
-          console.log('[TestRunner] No password required, showing instructions');
           // No password required, show instructions directly
           setShowInstructions(true);
         }
       } catch (error) {
-        console.error('[TestRunner] Error fetching test data:', error);
-        console.error('[TestRunner] Error details:', {
-          message: error.message,
-          code: error.code,
-          stack: error.stack
-        });
 
         Logger.error('Error fetching test data', null, error);
 
@@ -1261,17 +1223,7 @@ function TestRunner() {
                         </label>
                       ))}
                     </div>
-                    <div>
-                      <label className="block text-sm font-medium text-secondary mb-2">Notes (Optional)</label>
-                      <textarea
-                        className="textarea"
-                        placeholder="Add notes..."
-                        rows={4}
-                        value={userAnswers[`${currentQuestion.id}_notes`] || ''}
-                        onChange={e => setUserAnswers(ans => ({ ...ans, [`${currentQuestion.id}_notes`]: e.target.value }))}
-                        onPaste={e => handlePaste(`${currentQuestion.id}_notes`, e.clipboardData.getData('text'))}
-                      />
-                    </div>
+
                   </div>
                 )}
                 {currentQuestion.questionType === 'long' && (

@@ -1,7 +1,5 @@
 # 🎯 Testify - Online Testing Platform
 
-# Failed to send verification email. Please try again later.
-
 [![CI/CD](https://github.com/your-username/testify/workflows/CI/CD%20Pipeline/badge.svg)](https://github.com/your-username/testify/actions)
 [![Security](https://img.shields.io/badge/security-audited-green.svg)](https://github.com/your-username/testify/security)
 [![Code Quality](https://img.shields.io/badge/code%20quality-A-brightgreen.svg)](https://github.com/your-username/testify)
