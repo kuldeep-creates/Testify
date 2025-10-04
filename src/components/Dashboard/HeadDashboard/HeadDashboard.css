@@ -896,6 +896,7 @@
   width: 100%;
   padding: 0.75rem;
   border: 1px solid #d1d5db;
+  color: black;
   border-radius: 6px;
   font-size: 0.875rem;
   transition: border-color 0.2s, box-shadow 0.2s;
