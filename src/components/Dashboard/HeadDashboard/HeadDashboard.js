@@ -1711,19 +1711,11 @@ function HeadResults() {
               <div key={result.id} className="submission-card">
                 <div className="submission-info">
                   <div>
-                    <h4>Candidate Submission</h4>
-                    <div className="candidate-name">
-                      {displayName}
-                    </div>
-                    <div className="candidate-id">
-                      ID: {result.candidateId || 'N/A'}
-                    </div>
-                    <div className="submission-date">
-                      Submitted: {result.submittedAt?.toDate?.()?.toLocaleString() || 'Not submitted'}
-                    </div>
-                    <div className="submission-duration">
-                      Duration: {result.timeTaken ? `${Math.round(result.timeTaken / 60)} minutes` : 'N/A'}
-                    </div>
+                    <h4>{displayName}</h4>
+
+
+
+
                     {result.evaluatedAt && (
                       <div className="evaluation-date">
                         Evaluated: {result.evaluatedAt?.toDate?.()?.toLocaleString()}
