@@ -319,6 +319,22 @@ function TestRunner() {
         showSuccess('Test submitted successfully!');
       }
 
+      // Exit fullscreen after successful submission
+      try {
+        if (document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement) {
+          if (document.exitFullscreen) {
+            await document.exitFullscreen();
+          } else if (document.webkitExitFullscreen) {
+            await document.webkitExitFullscreen();
+          } else if (document.msExitFullscreen) {
+            await document.msExitFullscreen();
+          }
+          Logger.info('Exited fullscreen after submission');
+        }
+      } catch (fullscreenError) {
+        Logger.warn('Could not exit fullscreen', null, fullscreenError);
+      }
+
       navigate('/dashboard');
 
     } catch (err) {
@@ -395,6 +411,22 @@ function TestRunner() {
           answers: Object.keys(userAnswers).length
         }
       });
+
+      // Exit fullscreen before navigating
+      try {
+        if (document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement) {
+          if (document.exitFullscreen) {
+            await document.exitFullscreen();
+          } else if (document.webkitExitFullscreen) {
+            await document.webkitExitFullscreen();
+          } else if (document.msExitFullscreen) {
+            await document.msExitFullscreen();
+          }
+          Logger.info('Exited fullscreen after auto-submit');
+        }
+      } catch (fullscreenError) {
+        Logger.warn('Could not exit fullscreen', null, fullscreenError);
+      }
 
       // Silently navigate back to dashboard after auto-submit
       navigate('/dashboard');
@@ -492,6 +524,23 @@ function TestRunner() {
 
       // All checks passed, start the test
       setShowInstructions(false);
+
+      // Request fullscreen mode
+      try {
+        const elem = document.documentElement;
+        if (elem.requestFullscreen) {
+          await elem.requestFullscreen();
+        } else if (elem.webkitRequestFullscreen) { // Safari
+          await elem.webkitRequestFullscreen();
+        } else if (elem.msRequestFullscreen) { // IE11
+          await elem.msRequestFullscreen();
+        }
+        Logger.info('Fullscreen mode activated');
+      } catch (fullscreenError) {
+        Logger.warn('Could not enter fullscreen mode', null, fullscreenError);
+        // Continue with test even if fullscreen fails
+        showInfo('Please maximize your window for the best test experience.');
+      }
 
       // Start the timer
       const mins = parseDurationToMinutes(testData.duration);
@@ -624,6 +673,78 @@ function TestRunner() {
     const poll = setInterval(checkNet, 30000);
     return () => clearInterval(poll);
   }, []);
+
+  // Fullscreen lock monitoring - prevents user from exiting fullscreen
+  useEffect(() => {
+    if (!testData || isSubmitting || secondsLeft <= 0) {return;}
+
+    const handleFullscreenChange = async () => {
+      // Check if user exited fullscreen
+      const isFullscreen = document.fullscreenElement || 
+                          document.webkitFullscreenElement || 
+                          document.msFullscreenElement;
+
+      if (!isFullscreen && secondsLeft > 0) {
+        Logger.warn('User exited fullscreen mode');
+        
+        // Log the violation
+        try {
+          await addDoc(collection(db, 'monitoring'), {
+            candidateId: user.uid,
+            testId,
+            type: 'fullscreen_exit',
+            timestamp: serverTimestamp(),
+            description: 'User exited fullscreen mode during test',
+            severity: 'high',
+            metadata: {
+              currentQuestion: current + 1,
+              timeRemaining: secondsLeft,
+              userAgent: navigator.userAgent
+            }
+          });
+        } catch (error) {
+          Logger.error('Error logging fullscreen exit', null, error);
+        }
+
+        // Show alert
+        setAlerts(prev => [...prev, {
+          msg: 'Fullscreen exit detected! Returning to fullscreen...',
+          time: new Date()
+        }]);
+        setShowAlert(true);
+
+        // Force back to fullscreen after a short delay
+        setTimeout(async () => {
+          try {
+            const elem = document.documentElement;
+            if (elem.requestFullscreen) {
+              await elem.requestFullscreen();
+            } else if (elem.webkitRequestFullscreen) {
+              await elem.webkitRequestFullscreen();
+            } else if (elem.msRequestFullscreen) {
+              await elem.msRequestFullscreen();
+            }
+            Logger.info('Forced return to fullscreen mode');
+          } catch (error) {
+            Logger.error('Could not return to fullscreen', null, error);
+            // If can't return to fullscreen, count as violation
+            setTabSwitches(prev => prev + 1);
+          }
+        }, 500);
+      }
+    };
+
+    // Add fullscreen change listeners
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+    document.addEventListener('msfullscreenchange', handleFullscreenChange);
+
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+      document.removeEventListener('msfullscreenchange', handleFullscreenChange);
+    };
+  }, [testData, isSubmitting, secondsLeft, user, testId, current]);
 
 
   useEffect(() => {
@@ -899,7 +1020,10 @@ function TestRunner() {
       { keys: ['Alt', 'F4'], name: 'Alt+F4 (Close Window)' },
       { keys: ['Control', 'r'], name: 'Ctrl+R (Refresh)' },
       { keys: ['F5'], name: 'F5 (Refresh)' },
-      { keys: ['Control', 'shift', 'r'], name: 'Ctrl+Shift+R (Hard Refresh)' }
+      { keys: ['Control', 'shift', 'r'], name: 'Ctrl+Shift+R (Hard Refresh)' },
+      // Fullscreen exit shortcuts - BLOCK THESE!
+      { keys: ['Escape'], name: 'ESC (Exit Fullscreen)' },
+      { keys: ['F11'], name: 'F11 (Toggle Fullscreen)' }
     ];
 
     const pressedKeys = [];
@@ -1076,9 +1200,11 @@ function TestRunner() {
               </div>
               <div className="card-body">
                 <ul className="rules-list">
+                  <li>🖥️ <strong>Fullscreen Mode:</strong> Test will automatically enter fullscreen mode and remain locked</li>
                   <li>🚫 <strong>Do not switch tabs,</strong> after tab switch test will be auto-submitted</li>
                   <li>🚫 <strong>Do not copy/paste</strong> All copy-paste activities are logged</li>
                   <li>🚫 <strong>Do not right-click</strong> or use keyboard shortcuts</li>
+                  <li>🚫 <strong>Do not exit fullscreen</strong> (ESC/F11 keys are blocked during test)</li>
                   <li>⏰ <strong>Submit before time runs out</strong> - test will auto-submit when time expires</li>
                   <li>💾 <strong>Your answers are saved automatically</strong> as you type</li>
                   <li>🔄 <strong>You can navigate between questions</strong> using the question numbers</li>
