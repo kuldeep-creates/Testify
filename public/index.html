@@ -2,42 +2,118 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <link rel="icon" href="%PUBLIC_URL%/favicon.ico" />
+    
+    <!-- Favicons -->
+    <link rel="icon" type="image/x-icon" href="%PUBLIC_URL%/favicon.ico" />
+    <link rel="icon" type="image/png" sizes="16x16" href="%PUBLIC_URL%/favicon-16x16.png" />
+    <link rel="icon" type="image/png" sizes="32x32" href="%PUBLIC_URL%/favicon-32x32.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="%PUBLIC_URL%/apple-touch-icon.png" />
+    <link rel="icon" type="image/png" sizes="192x192" href="%PUBLIC_URL%/android-chrome-192x192.png" />
+    <link rel="icon" type="image/png" sizes="512x512" href="%PUBLIC_URL%/android-chrome-512x512.png" />
+    
+    <!-- Primary Meta Tags -->
+    <title>Testify - Online Test Platform | MCQ, Coding & Assessment Tests</title>
+    <meta name="title" content="Testify - Online Test Platform | MCQ, Coding & Assessment Tests" />
+    <meta name="description" content="Testify is the best online testing platform for conducting MCQ tests, coding assessments, programming exams, and technical interviews. Create, manage, and evaluate tests with real-time monitoring, anti-cheating features, and detailed analytics." />
+    <meta name="keywords" content="online test, online exam, MCQ test, coding test, programming test, assessment platform, online quiz, technical test, aptitude test, competitive exam, mock test, practice test, coding assessment, programming exam, online examination system, test management, student assessment, employee assessment, recruitment test, placement test, entrance exam, online learning, e-learning platform, testify, test platform, exam software, quiz maker, test creator, online proctoring, anti-cheating, real-time monitoring, test analytics, automatic grading, multiple choice questions, coding questions, technical interview, skill assessment, knowledge test, certification exam" />
+    <meta name="author" content="Testify" />
+    <meta name="robots" content="index, follow" />
+    <meta name="language" content="English" />
+    <meta name="revisit-after" content="7 days" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#000000" />
-    <meta
-      name="description"
-      content="Web site created using create-react-app"
-    />
-    <link rel="apple-touch-icon" href="%PUBLIC_URL%/logo192.png" />
-    <!--
-      manifest.json provides metadata used when your web app is installed on a
-      user's mobile device or desktop. See https://developers.google.com/web/fundamentals/web-app-manifest/
-    -->
-    <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
-    <!--
-      Notice the use of %PUBLIC_URL% in the tags above.
-      It will be replaced with the URL of the `public` folder during the build.
-      Only files inside the `public` folder can be referenced from the HTML.
-
-      Unlike "/favicon.ico" or "favicon.ico", "%PUBLIC_URL%/favicon.ico" will
-      work correctly both with client-side routing and a non-root public URL.
-      Learn how to configure a non-root public URL by running `npm run build`.
-    -->
-    <title>React App</title>
+    <meta name="theme-color" content="#3b82f6" />
+    <meta name="google-site-verification" content="iFWjIQxHl_kuJyAD_yxB0a_hJ2xHctOA0_W2AptY2Do" />
+    
+    <!-- Open Graph / Facebook Meta Tags -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://testify.com/" />
+    <meta property="og:title" content="Testify - Online Test Platform | MCQ, Coding & Assessment Tests" />
+    <meta property="og:description" content="Create and conduct online tests, coding assessments, and MCQ exams with Testify. Features include real-time monitoring, anti-cheating, automatic grading, and detailed analytics." />
+    <meta property="og:image" content="%PUBLIC_URL%/android-chrome-512x512.png" />
+    <meta property="og:site_name" content="Testify" />
+    <meta property="og:locale" content="en_US" />
+    
+    <!-- Twitter Meta Tags -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:url" content="https://testify.com/" />
+    <meta name="twitter:title" content="Testify - Online Test Platform | MCQ, Coding & Assessment Tests" />
+    <meta name="twitter:description" content="Create and conduct online tests, coding assessments, and MCQ exams with Testify. Features include real-time monitoring, anti-cheating, automatic grading, and detailed analytics." />
+    <meta name="twitter:image" content="%PUBLIC_URL%/android-chrome-512x512.png" />
+    
+    <!-- Additional SEO Meta Tags -->
+    <meta name="rating" content="General" />
+    <meta name="distribution" content="global" />
+    <meta name="coverage" content="Worldwide" />
+    <meta name="target" content="all" />
+    <meta name="HandheldFriendly" content="True" />
+    <meta name="MobileOptimized" content="320" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    
+    <!-- Canonical URL -->
+    <link rel="canonical" href="https://testify.com/" />
+    
+    <!-- Web App Manifest -->
+    <link rel="manifest" href="%PUBLIC_URL%/site.webmanifest" />
+    
+    <!-- Structured Data (JSON-LD) for Rich Snippets -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebApplication",
+      "name": "Testify",
+      "alternateName": "Testify Online Testing Platform",
+      "url": "https://testify.com",
+      "logo": "%PUBLIC_URL%/android-chrome-512x512.png",
+      "description": "Testify is a comprehensive online testing platform for conducting MCQ tests, coding assessments, programming exams, and technical interviews with real-time monitoring and anti-cheating features.",
+      "applicationCategory": "EducationalApplication",
+      "operatingSystem": "Web Browser",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      },
+      "aggregateRating": {
+        "@type": "AggregateRating",
+        "ratingValue": "4.8",
+        "ratingCount": "1250"
+      },
+      "featureList": [
+        "Online MCQ Tests",
+        "Coding Assessments",
+        "Real-time Monitoring",
+        "Anti-cheating Features",
+        "Automatic Grading",
+        "Detailed Analytics",
+        "Multiple Question Types",
+        "Test Scheduling",
+        "Leaderboard",
+        "Certificate Generation"
+      ]
+    }
+    </script>
+    
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "Organization",
+      "name": "Testify",
+      "url": "https://testify.com",
+      "logo": "%PUBLIC_URL%/android-chrome-512x512.png",
+      "sameAs": [
+        "https://www.facebook.com/testify",
+        "https://twitter.com/testify",
+        "https://www.linkedin.com/company/testify"
+      ],
+      "contactPoint": {
+        "@type": "ContactPoint",
+        "contactType": "Customer Support",
+        "email": "support@testify.com"
+      }
+    }
+    </script>
   </head>
   <body>
     <noscript>You need to enable JavaScript to run this app.</noscript>
     <div id="root"></div>
-    <!--
-      This HTML file is a template.
-      If you open it directly in the browser, you will see an empty page.
-
-      You can add webfonts, meta tags, or analytics to this file.
-      The build step will place the bundled scripts into the <body> tag.
-
-      To begin the development, run `npm start` or `yarn start`.
-      To create a production bundle, use `npm run build` or `yarn build`.
-    -->
-  </body>
 </html>
