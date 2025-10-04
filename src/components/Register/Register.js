@@ -1,7 +1,7 @@
 import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 
 import { auth, db } from '../../firebase';
 import Logger from '../../utils/logger';
@@ -9,6 +9,7 @@ import './Register.css';
 
 function Register() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -97,8 +98,15 @@ function Register() {
         });
         // Continue to dashboard; FirebaseContext will attempt to create profile lazily
       }
-      setSuccess('Account created! Redirecting to dashboard...');
-      setTimeout(() => navigate('/dashboard'), 800);
+      setSuccess('Account created! Redirecting...');
+      
+      // Check for redirect parameter
+      const redirectTo = searchParams.get('redirect');
+      if (redirectTo) {
+        setTimeout(() => navigate(decodeURIComponent(redirectTo)), 800);
+      } else {
+        setTimeout(() => navigate('/dashboard'), 800);
+      }
     } catch (err) {
       Logger.error('Registration failed', {
         errorCode: err.code,
