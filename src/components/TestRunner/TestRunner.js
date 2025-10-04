@@ -550,6 +550,13 @@ function TestRunner() {
         navigate(`/login?redirect=${encodeURIComponent(`/test/${testId}`)}`);
         return;
       }
+
+      // Check if user is approved (only for candidates)
+      if (userDoc && userDoc.role === 'candidate' && userDoc.approved === false) {
+        navigate('/waiting');
+        return;
+      }
+
       try {
         console.log('[TestRunner] Starting to fetch test:', testId);
         console.log('[TestRunner] User:', user?.uid);
@@ -616,7 +623,7 @@ function TestRunner() {
       }
     }
     fetchData();
-  }, [testId, user, navigate]);
+  }, [testId, user, userDoc, navigate]);
 
   // Timer logic
   useEffect(() => {

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { doc, getDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
 
@@ -9,6 +9,7 @@ import './Login.css';
 
 function Login() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -38,7 +39,14 @@ function Login() {
       });
 
       setSuccess('Login successful! Redirecting...');
-      setTimeout(() => navigate('/dashboard'), 800);
+      
+      // Check for redirect parameter
+      const redirectTo = searchParams.get('redirect');
+      if (redirectTo) {
+        setTimeout(() => navigate(decodeURIComponent(redirectTo)), 800);
+      } else {
+        setTimeout(() => navigate('/dashboard'), 800);
+      }
     } catch (err) {
       Logger.error('Login failed', { errorCode: err.code, errorMessage: err.message }, err);
       const byCode = {
