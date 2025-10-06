@@ -26,7 +26,7 @@ const monitorConnection = async () => {
 
 // Helper function to parse duration string into total minutes
 const parseDurationToMinutes = (durationString) => {
-  if (!durationString) {return 30;}
+  if (!durationString) { return 30; }
 
   // Handle formats like "30 min", "1h", "1h 30min", "90 min"
   const minMatch = durationString.match(/(\d+)\s*min/);
@@ -72,11 +72,11 @@ const getFileExtension = (language) => {
 // Helper function to get code placeholder based on language
 const getCodePlaceholder = (language) => {
   const placeholders = {
-    'javascript': '// Write your JavaScript code here\nfunction solution() {\n    // Your code here\n    return result;\n}',
-    'python': '# Write your Python code here\ndef solution():\n    # Your code here\n    return result',
-    'java': '// Write your Java code here\npublic class Solution {\n    public static void main(String[] args) {\n        // Your code here\n    }\n}',
-    'cpp': '// Write your C++ code here\n#include <iostream>\nusing namespace std;\n\nint main() {\n    \n\n\n    return 0;\n}',
-    'c': '// Write your C code here\n#include <stdio.h>\n\nint main() {\n    // Your code here\n    return 0;\n}',
+    'javascript': 'function solution() {\n    // Your code here\n    return result;\n}',
+    'python': 'def solution():\n    # Your code here\n    return result',
+    'java': 'public class Solution {\n    public static void main(String[] args) {\n        // Your code here\n    }\n}',
+    'cpp': '#include <iostream>\n#include <iostream> \n using namespace std;\n\nint main() {\n    \n\n\n    return 0;\n}',
+    'c': '#include <stdio.h>\n\nint main() {\n    // Your code here\n    return 0;\n}',
     'html': '<!-- Write your HTML code here -->\n<!DOCTYPE html>\n<html>\n<head>\n    <title>Solution</title>\n</head>\n<body>\n    <!-- Your code here -->\n</body>\n</html>',
     'css': '/* Write your CSS code here */\n.container {\n    /* Your styles here */\n}',
     'sql': '-- Write your SQL code here\nSELECT * FROM table_name\nWHERE condition;'
@@ -141,7 +141,7 @@ function TestRunner() {
 
   // Sort questions by marks in ascending order (lowest marks first)
   const sortedQuestions = useMemo(() => {
-    if (!testData?.questions) {return [];}
+    if (!testData?.questions) { return []; }
     return [...testData.questions].sort((a, b) => {
       const marksA = a.marks || a.marksPerQuestion || 1;
       const marksB = b.marks || b.marksPerQuestion || 1;
@@ -344,12 +344,12 @@ function TestRunner() {
       }, err);
 
       let msg = 'Could not submit test. ';
-      if (err.code === 'unavailable') {msg += 'Check your internet connection.';}
-      else if (err.code === 'permission-denied') {msg += 'Permission denied. Check Firestore rules.';}
-      else if (err.code === 'unauthenticated') {msg += 'Please log in again.';}
-      else if (err.code === 'failed-precondition') {msg += 'Database configuration issue.';}
-      else if (err.message?.includes('fetch')) {msg += 'Network error. Check connection.';}
-      else {msg += `${err.message || 'Unknown error'}.`;}
+      if (err.code === 'unavailable') { msg += 'Check your internet connection.'; }
+      else if (err.code === 'permission-denied') { msg += 'Permission denied. Check Firestore rules.'; }
+      else if (err.code === 'unauthenticated') { msg += 'Please log in again.'; }
+      else if (err.code === 'failed-precondition') { msg += 'Database configuration issue.'; }
+      else if (err.message?.includes('fetch')) { msg += 'Network error. Check connection.'; }
+      else { msg += `${err.message || 'Unknown error'}.`; }
 
       showError(msg, err);
     } finally {
@@ -638,7 +638,7 @@ function TestRunner() {
 
   // Timer logic
   useEffect(() => {
-    if (secondsLeft <= 0 || !testData) {return;}
+    if (secondsLeft <= 0 || !testData) { return; }
 
     const interval = setInterval(() => {
       setSecondsLeft(prev => {
@@ -676,17 +676,17 @@ function TestRunner() {
 
   // Fullscreen lock monitoring - prevents user from exiting fullscreen
   useEffect(() => {
-    if (!testData || isSubmitting || secondsLeft <= 0) {return;}
+    if (!testData || isSubmitting || secondsLeft <= 0) { return; }
 
     const handleFullscreenChange = async () => {
       // Check if user exited fullscreen
-      const isFullscreen = document.fullscreenElement || 
-                          document.webkitFullscreenElement || 
-                          document.msFullscreenElement;
+      const isFullscreen = document.fullscreenElement ||
+        document.webkitFullscreenElement ||
+        document.msFullscreenElement;
 
       if (!isFullscreen && secondsLeft > 0) {
         Logger.warn('User exited fullscreen mode');
-        
+
         // Log the violation
         try {
           await addDoc(collection(db, 'monitoring'), {
@@ -748,7 +748,7 @@ function TestRunner() {
 
 
   useEffect(() => {
-    if (!testData || isSubmitting) {return;}
+    if (!testData || isSubmitting) { return; }
 
     // Single handler for tab switching detection
     const handleTabSwitchEvent = async (eventType) => {
@@ -826,7 +826,7 @@ function TestRunner() {
 
   // Paste detection
   const handlePaste = useCallback(async (qid, text) => {
-    if (!user || !testId || !qid) {return;}
+    if (!user || !testId || !qid) { return; }
     try {
       // Get the current question text for better monitoring display
       const currentQuestion = sortedQuestions?.find(q => q.id === qid);
@@ -969,10 +969,57 @@ function TestRunner() {
       Logger.error('Error handling copy event', null, error);
     }
   }, [user, testId, currentQuestion, logMonitoringEvent]);
+  // Add this near the top of the file with other utility functions
+  const formatCodeBlocks = (text) => {
+    if (!text) return 'No question text';
+
+    // First, handle code blocks that are already formatted with ```
+    let result = text.replace(/```(\w*)\s*([\s\S]*?)```/g, (match, lang, code) => {
+      const escapedCode = code
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+      return `<pre class="code-block"><code class="language-${lang || 'cpp'}">${escapedCode.trim()}</code></pre>`;
+    });
+
+    // Handle unformatted code blocks (detect by common code patterns)
+    if (!result.includes('<pre')) {
+      const codePatterns = [
+        /#include\s*<[^>]+>/,
+        /using\s+namespace\s+\w+\s*;/,
+        /(function|class|def|int|void|string|var|let|const)\s+\w+\s*[({=]/
+      ];
+
+      const isLikelyCode = codePatterns.some(pattern => pattern.test(text));
+      if (isLikelyCode) {
+        const escapedCode = text
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;');
+        return `<pre class="code-block"><code>${escapedCode.trim()}</code></pre>`;
+      }
+    }
+
+    // For any remaining text, escape HTML and handle newlines
+    result = result
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/\n/g, '<br>')
+      .replace(/ {2,}/g, match => '&nbsp;'.repeat(match.length));
+
+    // Convert inline code
+    result = result.replace(/`([^`]+)`/g, '<code class="inline-code">$1</code>');
+
+    return result;
+  };
 
   // Right-click detection
   const handleRightClick = useCallback(async (e) => {
-    if (!user || !testId) {return;}
+    if (!user || !testId) { return; }
     e.preventDefault(); // Prevent context menu
     try {
       await logMonitoringEvent(
@@ -997,7 +1044,7 @@ function TestRunner() {
 
   // Keyboard shortcut detection
   const handleKeyboardShortcut = useCallback(async (e) => {
-    if (!user || !testId) {return;}
+    if (!user || !testId) { return; }
 
     const suspiciousShortcuts = [
       { keys: ['Control', 'c'], name: 'Ctrl+C (Copy)' },
@@ -1027,16 +1074,16 @@ function TestRunner() {
     ];
 
     const pressedKeys = [];
-    if (e.ctrlKey) {pressedKeys.push('Control');}
-    if (e.shiftKey) {pressedKeys.push('Shift');}
-    if (e.altKey) {pressedKeys.push('Alt');}
+    if (e.ctrlKey) { pressedKeys.push('Control'); }
+    if (e.shiftKey) { pressedKeys.push('Shift'); }
+    if (e.altKey) { pressedKeys.push('Alt'); }
     if (e.key && !['Control', 'Shift', 'Alt'].includes(e.key)) {
       pressedKeys.push(e.key.toLowerCase());
     }
 
     const matchedShortcut = suspiciousShortcuts.find(shortcut => {
       return shortcut.keys.length === pressedKeys.length &&
-             shortcut.keys.every(key => pressedKeys.includes(key.toLowerCase()));
+        shortcut.keys.every(key => pressedKeys.includes(key.toLowerCase()));
     });
 
     if (matchedShortcut) {
@@ -1101,13 +1148,13 @@ function TestRunner() {
   // Keyboard navigation (separate from monitoring)
   useEffect(() => {
     const navHandler = (e) => {
-      if (isSubmitting || !sortedQuestions || showInstructions) {return;}
+      if (isSubmitting || !sortedQuestions || showInstructions) { return; }
 
       // Only handle navigation keys when not in input fields
       const target = e.target;
       const isInputField = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.contentEditable === 'true';
 
-      if (isInputField) {return;}
+      if (isInputField) { return; }
 
       // Only handle navigation keys, let monitoring handle suspicious shortcuts
       if (e.key === 'ArrowRight' && current < sortedQuestions.length - 1 && !e.ctrlKey && !e.shiftKey && !e.altKey) {
@@ -1205,9 +1252,7 @@ function TestRunner() {
                   <li>🚫 <strong>Do not copy/paste</strong> All copy-paste activities are logged</li>
                   <li>🚫 <strong>Do not right-click</strong> or use keyboard shortcuts</li>
                   <li>🚫 <strong>Do not exit fullscreen</strong> (ESC/F11 keys are blocked during test)</li>
-                  <li>⏰ <strong>Submit before time runs out</strong> - test will auto-submit when time expires</li>
-                  <li>💾 <strong>Your answers are saved automatically</strong> as you type</li>
-                  <li>🔄 <strong>You can navigate between questions</strong> using the question numbers</li>
+
                 </ul>
               </div>
             </div>
@@ -1248,9 +1293,9 @@ function TestRunner() {
   if (isLoading) {
     return <Loading message="Loading test" subtext="Preparing your test environment" />;
   }
-  if (errMsg) {return <div className="test-container"><div className="test-card">Error: {errMsg}</div></div>;}
-  if (!testData) {return <div className="test-container"><div className="test-card">Test not found</div></div>;}
-  if (!user) {return <div className="test-container"><div className="test-card">Please log in</div></div>;}
+  if (errMsg) { return <div className="test-container"><div className="test-card">Error: {errMsg}</div></div>; }
+  if (!testData) { return <div className="test-container"><div className="test-card">Test not found</div></div>; }
+  if (!user) { return <div className="test-container"><div className="test-card">Please log in</div></div>; }
 
   return (
     <div className="test-runner">
@@ -1268,7 +1313,7 @@ function TestRunner() {
             Time: {formatTime(secondsLeft)}
           </div>
 
-{process.env.NODE_ENV === 'development' && (
+          {process.env.NODE_ENV === 'development' && (
             <>
 
 
@@ -1315,9 +1360,17 @@ function TestRunner() {
             <div className="card">
               <div className="card-body">
                 <div className="question-content">
-                  <div className="text-xl font-semibold mb-6 text-primary">
-                    {currentQuestion.questionText || currentQuestion.question || currentQuestion.text || 'No question text'}
-                  </div>
+                  <div
+                    className="text-xl font-semibold mb-6 text-primary"
+                    dangerouslySetInnerHTML={{
+                      __html: formatCodeBlocks(
+                        currentQuestion.questionText ||
+                        currentQuestion.question ||
+                        currentQuestion.text ||
+                        'No question text'
+                      )
+                    }}
+                  />
                   {currentQuestion.imageUrl && currentQuestion.imageUrl.trim() && (
                     <div className="question-image">
                       <img

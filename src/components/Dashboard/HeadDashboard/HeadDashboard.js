@@ -27,7 +27,7 @@ const formatDuration = (hours, minutes) => {
 
 // Helper function to parse duration string into hours and minutes
 const parseDuration = (durationString) => {
-  if (!durationString) {return { hours: 0, minutes: 30 };}
+  if (!durationString) { return { hours: 0, minutes: 30 }; }
 
   // Handle formats like "30 min", "1h", "1h 30min", "90 min"
   const minMatch = durationString.match(/(\d+)\s*min/);
@@ -218,7 +218,7 @@ function HeadCreateTest() {
                 className="form-input"
                 placeholder="e.g., JavaScript Fundamentals Assessment"
                 value={testData.title}
-                onChange={(e) => setTestData({...testData, title: e.target.value})}
+                onChange={(e) => setTestData({ ...testData, title: e.target.value })}
               />
               <div className="form-help">Choose a clear, descriptive title for your test</div>
             </div>
@@ -230,7 +230,7 @@ function HeadCreateTest() {
                 placeholder="Describe what this test covers and any special instructions for candidates..."
                 rows={4}
                 value={testData.description}
-                onChange={(e) => setTestData({...testData, description: e.target.value})}
+                onChange={(e) => setTestData({ ...testData, description: e.target.value })}
               />
               <div className="form-help">Optional: Provide context and instructions for candidates</div>
             </div>
@@ -252,7 +252,7 @@ function HeadCreateTest() {
                         const value = e.target.value.replace(/[^0-9]/g, ''); // Only allow numbers
                         const numValue = parseInt(value) || 0;
                         if (numValue <= 12) {
-                          setTestData({...testData, durationHours: numValue});
+                          setTestData({ ...testData, durationHours: numValue });
                         }
                       }}
                       placeholder="0"
@@ -273,7 +273,7 @@ function HeadCreateTest() {
                         const value = e.target.value.replace(/[^0-9]/g, ''); // Only allow numbers
                         const numValue = parseInt(value) || 0;
                         if (numValue <= 59) {
-                          setTestData({...testData, durationMinutes: numValue});
+                          setTestData({ ...testData, durationMinutes: numValue });
                         }
                       }}
                       placeholder="30"
@@ -306,7 +306,7 @@ function HeadCreateTest() {
                 className="form-input"
                 placeholder="Enter a secure password for test access"
                 value={testData.password}
-                onChange={(e) => setTestData({...testData, password: e.target.value})}
+                onChange={(e) => setTestData({ ...testData, password: e.target.value })}
               />
               <div className="form-help">Candidates will need this password to access the test</div>
             </div>
@@ -318,7 +318,7 @@ function HeadCreateTest() {
                   <input
                     type="checkbox"
                     checked={testData.allowMultipleSubmissions}
-                    onChange={(e) => setTestData({...testData, allowMultipleSubmissions: e.target.checked})}
+                    onChange={(e) => setTestData({ ...testData, allowMultipleSubmissions: e.target.checked })}
                     style={{ opacity: 0, width: 0, height: 0 }}
                   />
                   <span
@@ -443,7 +443,7 @@ function HeadCreateTest() {
                             e.target.nextSibling.style.display = 'none';
                           }}
                         />
-                        <div className="image-error" style={{display: 'none'}}>
+                        <div className="image-error" style={{ display: 'none' }}>
                           ❌ Failed to load image. Please check the URL.
                         </div>
                         <button
@@ -608,13 +608,19 @@ function HeadManageTests() {
       setError('');
       try {
         const testsRef = collection(db, 'tests');
-        const q = query(testsRef, where('branch', '==', userDoc?.domain || 'Full Stack'));
+        const q = query(testsRef);  // Remove the where clause temporarily
         const snap = await getDocs(q);
+
+        console.log('Total tests in database:', snap.size);
+        snap.forEach(doc => {
+          console.log('Test:', doc.id, doc.data());
+        });
+
         const testsData = snap.docs.map(d => ({ id: d.id, ...d.data() }));
         setTests(testsData);
       } catch (e) {
-        console.log('[Head:loadTests:error]', e.code, e.message);
-        setError(e.message || 'Failed to load tests');
+        console.error('[Head:loadTests:error]', e);
+        setError('Failed to load tests: ' + e.message);
       } finally {
         setLoading(false);
       }
@@ -770,6 +776,7 @@ function HeadManageTests() {
         <div className="tests-grid">
           {tests.map(test => (
             <div key={test.id} className="test-card">
+              {console.log(test.id)}
               <div className="test-info">
                 <div>
                   <h4>{test.title}</h4>
@@ -835,7 +842,7 @@ function HeadManageTests() {
                     <input
                       type="text"
                       value={editTestData.title}
-                      onChange={(e) => setEditTestData({...editTestData, title: e.target.value})}
+                      onChange={(e) => setEditTestData({ ...editTestData, title: e.target.value })}
                       className="form-input"
                     />
                   </div>
@@ -843,7 +850,7 @@ function HeadManageTests() {
                     <label>Description</label>
                     <textarea
                       value={editTestData.description}
-                      onChange={(e) => setEditTestData({...editTestData, description: e.target.value})}
+                      onChange={(e) => setEditTestData({ ...editTestData, description: e.target.value })}
                       className="form-textarea"
                       rows="3"
                     />
@@ -859,7 +866,7 @@ function HeadManageTests() {
                             max="12"
                             className="form-input"
                             value={editTestData.durationHours}
-                            onChange={(e) => setEditTestData({...editTestData, durationHours: parseInt(e.target.value) || 0})}
+                            onChange={(e) => setEditTestData({ ...editTestData, durationHours: parseInt(e.target.value) || 0 })}
                             placeholder="0"
                           />
                           <small style={{ color: '#6b7280', fontSize: '12px', marginTop: '4px' }}>Hours</small>
@@ -873,7 +880,7 @@ function HeadManageTests() {
                             step="1"
                             className="form-input"
                             value={editTestData.durationMinutes}
-                            onChange={(e) => setEditTestData({...editTestData, durationMinutes: parseInt(e.target.value) || 0})}
+                            onChange={(e) => setEditTestData({ ...editTestData, durationMinutes: parseInt(e.target.value) || 0 })}
                             placeholder="30"
                           />
                           <small style={{ color: '#6b7280', fontSize: '12px', marginTop: '4px' }}>Minutes</small>
@@ -888,7 +895,7 @@ function HeadManageTests() {
                       <input
                         type="text"
                         value={editTestData.password}
-                        onChange={(e) => setEditTestData({...editTestData, password: e.target.value})}
+                        onChange={(e) => setEditTestData({ ...editTestData, password: e.target.value })}
                         className="form-input"
                         placeholder="Optional test password"
                       />
@@ -902,7 +909,7 @@ function HeadManageTests() {
                         <input
                           type="checkbox"
                           checked={editTestData.allowMultipleSubmissions}
-                          onChange={(e) => setEditTestData({...editTestData, allowMultipleSubmissions: e.target.checked})}
+                          onChange={(e) => setEditTestData({ ...editTestData, allowMultipleSubmissions: e.target.checked })}
                           style={{ opacity: 0, width: 0, height: 0 }}
                         />
                         <span
@@ -1086,7 +1093,7 @@ function HeadManageTests() {
                                       e.target.nextSibling.style.display = 'none';
                                     }}
                                   />
-                                  <div className="image-error" style={{display: 'none'}}>
+                                  <div className="image-error" style={{ display: 'none' }}>
                                     ❌ Failed to load image. Please check the URL.
                                   </div>
                                   <button
@@ -1395,14 +1402,7 @@ function HeadResults() {
                   userData.username
                 ];
 
-                console.log('DEBUG: Available name fields:', {
-                  name: userData.name,
-                  displayName: userData.displayName,
-                  fullName: userData.fullName,
-                  firstName: userData.firstName,
-                  username: userData.username,
-                  email: userData.email
-                });
+
 
                 // Use the first available name
                 for (const name of possibleNames) {
@@ -1469,7 +1469,7 @@ function HeadResults() {
 
         // If no submission for this candidate yet, or this one is newer
         if (!latestSubmissions[candidateId] ||
-            submittedAt > (latestSubmissions[candidateId].submittedAt?.toDate?.() || new Date(latestSubmissions[candidateId].submittedAt))) {
+          submittedAt > (latestSubmissions[candidateId].submittedAt?.toDate?.() || new Date(latestSubmissions[candidateId].submittedAt))) {
           latestSubmissions[candidateId] = submission;
         }
       });
@@ -1712,10 +1712,6 @@ function HeadResults() {
                 <div className="submission-info">
                   <div>
                     <h4>{displayName}</h4>
-
-
-
-
                     {result.evaluatedAt && (
                       <div className="evaluation-date">
                         Evaluated: {result.evaluatedAt?.toDate?.()?.toLocaleString()}
@@ -2037,6 +2033,33 @@ function HeadSubmissionDetailView({ submission, test, onBack }) {
     }).reduce((sum, mark) => sum + (mark || 0), 0);
     setTotalMarks(newTotal);
   };
+  const formatCodeBlocks = (text) => {
+    // First escape all HTML
+    let result = text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+
+    // Convert code blocks (between ``` and ```)
+    result = result.replace(/```([\s\S]*?)```/g, (match, code) => {
+      const escapedCode = code
+        .replace(/^[\r\n]+|[\r\n]+$/g, '') // Trim newlines
+        .replace(/^/gm, '  '); // Add indentation
+      return `<pre class="code-block"><code>${escapedCode}</code></pre>`;
+    });
+
+    // Convert inline code (`code`)
+    result = result.replace(/`([^`]+)`/g, '<code class="inline-code">$1</code>');
+
+    // Convert newlines to <br> for non-code blocks
+    result = result.replace(/\n(?!\s*<pre)/g, '<br>');
+
+    // Convert multiple spaces to &nbsp; (except in code blocks)
+    result = result.replace(/ {2,}(?![\s\S]*<\/pre>)/g, (match) => '&nbsp;'.repeat(match.length));
+
+    return result;
+  };
 
   const saveMarksDistribution = async () => {
     setSaving(true);
@@ -2168,9 +2191,12 @@ function HeadSubmissionDetailView({ submission, test, onBack }) {
             </div>
 
             <div className="question-content">
-              <div className="question-text">
-                {question.questionText || 'No question text'}
-              </div>
+              <div
+                className="question-text"
+                dangerouslySetInnerHTML={{
+                  __html: formatCodeBlocks(question.questionText || 'No question text')
+                }}
+              />
 
               {/* Question Image */}
               {question.imageUrl && (
@@ -2212,11 +2238,9 @@ function HeadSubmissionDetailView({ submission, test, onBack }) {
                     {question.options.map((option, optIndex) => (
                       <div
                         key={optIndex}
-                        className={`option ${
-                          option === question.correctAnswer ? 'correct-option' : ''
-                        } ${
-                          option === question.candidateAnswer ? 'selected-option' : ''
-                        }`}
+                        className={`option ${option === question.correctAnswer ? 'correct-option' : ''
+                          } ${option === question.candidateAnswer ? 'selected-option' : ''
+                          }`}
                       >
                         <span className="option-label">{String.fromCharCode(65 + optIndex)}.</span>
                         <span className="option-text">{option}</span>

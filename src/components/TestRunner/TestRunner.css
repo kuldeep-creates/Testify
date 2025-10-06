@@ -651,6 +651,34 @@
     font-size: 0.875rem;
   }
 }
+/* Add these styles to TestRunner.css */
+.code-block {
+  background: #2d2d2d;
+  color: #abb2bf;
+  padding: 1rem;
+  border-radius: 6px;
+  overflow-x: auto;
+  margin: 1rem 0;
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 0.9em;
+  line-height: 1.5;
+  white-space: pre;
+  tab-size: 4;
+}
+
+.code-block code {
+  display: block;
+  font-family: inherit;
+}
+
+.inline-code {
+  background: #f0f0f0;
+  padding: 0.2em 0.4em;
+  border-radius: 3px;
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 0.9em;
+  color: #d6336c;
+}
 
 /* Code Question Header */
 .code-question-header {

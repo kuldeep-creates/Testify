@@ -32,5 +32,8 @@
     "**/dist": true,
     "**/.git": true,
     "**/.DS_Store": true
+  },
+  "[javascriptreact]": {
+    "editor.defaultFormatter": "vscode.typescript-language-features"
   }
 }
