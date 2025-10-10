@@ -604,17 +604,15 @@ function HeadManageTests() {
 
   useEffect(() => {
     const loadTests = async () => {
+      if (!userDoc?.domain) return;
+      
       setLoading(true);
       setError('');
       try {
         const testsRef = collection(db, 'tests');
-        const q = query(testsRef);  // Remove the where clause temporarily
+        // Filter tests by the head's domain
+        const q = query(testsRef, where('branch', '==', userDoc.domain));
         const snap = await getDocs(q);
-
-        console.log('Total tests in database:', snap.size);
-        snap.forEach(doc => {
-          console.log('Test:', doc.id, doc.data());
-        });
 
         const testsData = snap.docs.map(d => ({ id: d.id, ...d.data() }));
         setTests(testsData);

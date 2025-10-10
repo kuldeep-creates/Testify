@@ -11,7 +11,6 @@ import BlockedSubmissionCard from '../BlockedSubmissionCard/BlockedSubmissionCar
 import Loading from '../Loading/Loading';
 import './TestRunner.css';
 
-// Network monitoring function
 const monitorConnection = async () => {
   try {
     const response = await fetch('/favicon.ico', {
@@ -135,9 +134,38 @@ function TestRunner() {
   const [showBlockedCard, setShowBlockedCard] = useState(false);
   const [blockMessage, setBlockMessage] = useState('');
   const [selectedLanguage, setSelectedLanguage] = useState('cpp');
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
-  // Ref to track if auto-submit has been triggered to prevent multiple submissions
+  // Refs
   const autoSubmitTriggered = useRef(false);
+  const testContainerRef = useRef(null);
+
+  // Toggle fullscreen
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      if (testContainerRef.current?.requestFullscreen) {
+        testContainerRef.current.requestFullscreen().catch(err => {
+          console.error('Error attempting to enable fullscreen:', err);
+        });
+      }
+    } else {
+      if (document.exitFullscreen) {
+        document.exitFullscreen();
+      }
+    }
+  };
+
+  // Handle fullscreen change events
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+    };
+  }, []);
 
   // Sort questions by marks in ascending order (lowest marks first)
   const sortedQuestions = useMemo(() => {
@@ -1298,7 +1326,7 @@ function TestRunner() {
   if (!user) { return <div className="test-container"><div className="test-card">Please log in</div></div>; }
 
   return (
-    <div className="test-runner">
+    <div className="test-runner" ref={testContainerRef}>
       <div className="test-container">
         <div className="test-header sticky">
           <button
@@ -1545,12 +1573,7 @@ function TestRunner() {
             >
               {current >= sortedQuestions.length - 1 ? 'Last Question' : 'Next →'}
             </button>
-            <button
-              className="btn btn-secondary"
-              onClick={() => showInfo('Progress is auto-saved!')}
-            >
-              Save Progress
-            </button>
+
           </div>
         </div>
 

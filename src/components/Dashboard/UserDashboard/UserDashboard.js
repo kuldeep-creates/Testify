@@ -1,5 +1,5 @@
 import { signOut } from 'firebase/auth';
-import { collection, doc, getDoc, getDocs, query, where } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, limit, query, where } from 'firebase/firestore';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -30,23 +30,27 @@ function CandidateTests() {
       setError('');
       try {
         const testsRef = collection(db, 'tests');
-        // Remove the status filter to show all tests
-        const q = testsRef;
+        const q = query(testsRef, limit(10));
         const snap = await getDocs(q);
 
-        // Filter out tests that are not active or published
+        if (snap.empty) {
+          return;
+        }
+
         const now = new Date();
         const testsData = snap.docs
           .map(d => ({ id: d.id, ...d.data() }))
           .filter(test => {
-            // Include test if it's active or doesn't have a status field (for backward compatibility)
             const isActive = !test.status || test.status === 'active';
-
-            // Check if test has an end date and if it's still valid
-            const hasValidEndDate = !test.endDate ||
-                                  (test.endDate?.toDate && test.endDate.toDate() > now) ||
-                                  (test.endDate?.seconds && new Date(test.endDate.seconds * 1000) > now);
-
+            
+            let endDate;
+            if (test.endDate?.toDate) {
+              endDate = test.endDate.toDate();
+            } else if (test.endDate?.seconds) {
+              endDate = new Date(test.endDate.seconds * 1000);
+            }
+            
+            const hasValidEndDate = !endDate || endDate > now;
             return isActive && hasValidEndDate;
           });
 
@@ -96,7 +100,7 @@ function CandidateTests() {
 
   // Function to check submissions before starting test
   const checkSubmissionsAndStart = async (test) => {
-    if (!user) {return;}
+    if (!user) { return; }
 
     setCheckingSubmissions(true);
     try {
@@ -162,12 +166,14 @@ function CandidateTests() {
     );
   });
 
-  if (loading) {return (
-    <div className="loading-tests">
-      <Loading message="Loading tests" subtext="Fetching available tests for you" variant="inline" size="large" />
-    </div>
-  );}
-  if (error) {return <div className="error">Error: {error}</div>;}
+  if (loading) {
+    return (
+      <div className="loading-tests">
+        <Loading message="Loading tests" subtext="Fetching available tests for you" variant="inline" size="large" />
+      </div>
+    );
+  }
+  if (error) { return <div className="error">Error: {error}</div>; }
 
   return (
     <div className="candidate-tests">
@@ -289,7 +295,7 @@ function CandidateResults() {
 
   useEffect(() => {
     const loadResults = async () => {
-      if (!user?.uid) {return;}
+      if (!user?.uid) { return; }
 
       setLoading(true);
       setError('');
@@ -362,12 +368,14 @@ function CandidateResults() {
     loadResults();
   }, [user?.uid]);
 
-  if (loading) {return (
-    <div className="loading-results">
-      <Loading message="Loading your results" subtext="Analyzing your test performance and scores" variant="inline" size="large" />
-    </div>
-  );}
-  if (error) {return <div className="error">Error: {error}</div>;}
+  if (loading) {
+    return (
+      <div className="loading-results">
+        <Loading message="Loading your results" subtext="Analyzing your test performance and scores" variant="inline" size="large" />
+      </div>
+    );
+  }
+  if (error) { return <div className="error">Error: {error}</div>; }
 
   return (
     <div className="candidate-results">
@@ -431,7 +439,7 @@ function CandidateResults() {
                 </div>
                 <div className="score-label">
                   {result.status === 'evaluated' ? 'Score' :
-                   result.status === 'auto-submitted' ? 'Auto-Submitted' : 'Submitted'}
+                    result.status === 'auto-submitted' ? 'Auto-Submitted' : 'Submitted'}
                 </div>
               </div>
               {result.submittedAt && (
