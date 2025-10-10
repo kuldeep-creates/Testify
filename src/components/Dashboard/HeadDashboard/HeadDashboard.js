@@ -583,8 +583,10 @@ function HeadCreateTest() {
 // Head Manage Tests Component
 function HeadManageTests() {
   const [tests, setTests] = useState([]);
+  const [filteredTests, setFilteredTests] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
   const [editingTest, setEditingTest] = useState(null);
   const [editStep, setEditStep] = useState(1);
   const [editTestData, setEditTestData] = useState({
@@ -602,20 +604,19 @@ function HeadManageTests() {
   const [copiedTestId, setCopiedTestId] = useState(null);
   const { userDoc } = useFirebase();
 
+  // Load all tests without domain filtering
   useEffect(() => {
     const loadTests = async () => {
-      if (!userDoc?.domain) return;
-      
       setLoading(true);
       setError('');
       try {
         const testsRef = collection(db, 'tests');
-        // Filter tests by the head's domain
-        const q = query(testsRef, where('branch', '==', userDoc.domain));
+        const q = query(testsRef);
         const snap = await getDocs(q);
 
         const testsData = snap.docs.map(d => ({ id: d.id, ...d.data() }));
         setTests(testsData);
+        setFilteredTests(testsData);
       } catch (e) {
         console.error('[Head:loadTests:error]', e);
         setError('Failed to load tests: ' + e.message);
@@ -624,10 +625,25 @@ function HeadManageTests() {
       }
     };
 
-    if (userDoc?.domain) {
-      loadTests();
+    loadTests();
+  }, []);
+
+  // Filter tests based on search term
+  useEffect(() => {
+    if (!searchTerm.trim()) {
+      setFilteredTests(tests);
+      return;
     }
-  }, [userDoc?.domain]);
+
+    const lowercasedFilter = searchTerm.toLowerCase();
+    const filtered = tests.filter(test => 
+      test.title.toLowerCase().includes(lowercasedFilter) ||
+      (test.description && test.description.toLowerCase().includes(lowercasedFilter)) ||
+      (test.domain && test.domain.toLowerCase().includes(lowercasedFilter))
+    );
+    
+    setFilteredTests(filtered);
+  }, [searchTerm, tests]);
 
   const toggleTestStatus = async (testId, currentStatus) => {
     try {
@@ -755,10 +771,19 @@ function HeadManageTests() {
           <p className="manage-subtitle">
             Create, edit, and share your tests. Use the <strong>🔗 Share Link</strong> button to copy test URLs for candidates.
           </p>
+          <div className="search-box" style={{ marginTop: '1rem', maxWidth: '400px' }}>
+            <input
+              type="text"
+              placeholder="Search tests by title, description, or domain..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="form-input"
+              style={{ width: '100%', padding: '0.5rem 1rem' }}
+            />
+          </div>
         </div>
-        <div className="branch-badge">
-          <span>Domain:</span>
-          <span className="badge badge-primary">{userDoc?.domain || 'Full Stack'}</span>
+        <div className="test-count">
+          <span className="badge badge-primary">{filteredTests.length} test(s) found</span>
         </div>
       </div>
 
@@ -766,15 +791,16 @@ function HeadManageTests() {
 
       {loading ? (
         <div className="loading-tests">
-          <Loading message="Loading tests" subtext="Fetching your created tests" variant="inline" size="large" />
+          <Loading message="Loading tests" subtext="Fetching all available tests" variant="inline" size="large" />
         </div>
-      ) : tests.length === 0 ? (
-        <div className="no-tests">No tests created yet.</div>
+      ) : filteredTests.length === 0 ? (
+        <div className="no-tests">
+          {searchTerm ? 'No tests match your search. Try a different term.' : 'No tests available.'}
+        </div>
       ) : (
         <div className="tests-grid">
-          {tests.map(test => (
+          {filteredTests.map(test => (
             <div key={test.id} className="test-card">
-              {console.log(test.id)}
               <div className="test-info">
                 <div>
                   <h4>{test.title}</h4>
