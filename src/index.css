@@ -5,6 +5,28 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  color: #1a202c; /* Dark gray for better readability */
+  background-color: #f8fafc; /* Light background */
+}
+
+/* Ensure all text has good contrast */
+h1, h2, h3, h4, h5, h6, p, span, div, a {
+  color: inherit;
+}
+
+/* Fix input and select elements */
+input, select, textarea, button {
+  color: #1a202c;
+  background-color: #ffffff;
+  border: 1px solid #cbd5e0;
+  border-radius: 4px;
+  padding: 8px 12px;
+}
+
+/* Focus states for better accessibility */
+input:focus, select:focus, textarea:focus, button:focus {
+  outline: 2px solid #3182ce;
+  outline-offset: 2px;
 }
 
 code {

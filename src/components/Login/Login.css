@@ -2,13 +2,77 @@
 
 .login-container {
   min-height: 100vh;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #4a6cf7 0%, #5e35b1 100%);
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 1rem;
   position: relative;
   overflow: hidden;
+  color: #ffffff;
+}
+
+/* Ensure all text is visible */
+.login-main h1,
+.login-main h2,
+.login-main h3,
+.login-main p,
+.login-main label,
+.login-main a {
+  color: #070707 !important;
+
+}
+
+/* Input fields */
+.login-main input {
+  color: #000000 !important;
+  background-color: #ffffff !important;
+  border: 1px solid #ced4da !important;
+  padding: 10px 15px !important;
+  border-radius: 4px !important;
+}
+
+/* Buttons */
+.login-main button {
+  background-color: #4a6cf7 !important;
+  color: white !important;
+  border: none !important;
+  padding: 12px 24px !important;
+  border-radius: 4px !important;
+  cursor: pointer !important;
+  font-weight: 600 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.5px !important;
+}
+
+/* Links */
+.login-main a {
+  color: #7794f7 !important;
+  text-decoration: none !important;
+  font-weight: 500 !important;
+}
+
+.login-main a:hover {
+  text-decoration: underline !important;
+  color: #2659e6 !important;
+}
+
+/* Form elements */
+.login-form-group label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 500;
+}
+
+/* Error messages */
+.error-message {
+  color: #ff6b6b !important;
+  background: rgba(255, 255, 255, 0.9);
+  padding: 8px 12px;
+  border-radius: 4px;
+  margin-top: 5px;
+  font-weight: 500;
+  text-shadow: none;
 }
 
 .login-background {
@@ -83,7 +147,7 @@
   background: rgba(255, 255, 255, 0.95);
   backdrop-filter: blur(20px);
   border-radius: 20px;
-  box-shadow: 
+  box-shadow:
     0 20px 40px rgba(0, 0, 0, 0.1),
     0 15px 12px rgba(0, 0, 0, 0.08),
     inset 0 1px 0 rgba(255, 255, 255, 0.6);
@@ -279,11 +343,11 @@
   .login-main {
     max-width: 380px;
   }
-  
+
   .login-container {
     padding: 1rem;
   }
-  
+
   .login-title {
     font-size: 2rem;
   }
@@ -293,24 +357,24 @@
   .login-container {
     padding: 0.5rem;
   }
-  
+
   .login-title {
     font-size: 1.75rem;
   }
-  
+
   .login-subtitle {
     font-size: 1rem;
   }
-  
+
   .login-card {
     padding: 2rem;
     border-radius: 16px;
   }
-  
+
   .login-input {
     padding: 0.875rem 1rem;
   }
-  
+
   .login-button {
     padding: 0.875rem 1.25rem;
     font-size: 1rem;
