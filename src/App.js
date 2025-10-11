@@ -12,18 +12,20 @@ import Waiting from './components/Waiting/Waiting';
 
 function App() {
   return (
-    <Routes>
-      <Route path="/" element={<Login />} />
-      <Route path="/login" element={<Login />} />
-      <Route path="/register" element={<Register />} />
-      <Route path="/dashboard" element={<Dashboard />} />
-      <Route path="/test/:testId" element={<TestRunner />} />
-      <Route path="/account" element={<Account />} />
-      <Route path="/waiting" element={<Waiting />} />
-      <Route path="/blocked" element={<Blocked />} />
-      <Route path="*" element={<Navigate to="/" replace />} />
+    <>
+      <Routes>
+        <Route path="/" element={<Login />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
+        <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/test/:testId" element={<TestRunner />} />
+        <Route path="/account" element={<Account />} />
+        <Route path="/waiting" element={<Waiting />} />
+        <Route path="/blocked" element={<Blocked />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
       <Analytics />
-    </Routes>
+    </>
   );
 }
 
