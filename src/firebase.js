@@ -1,6 +1,6 @@
 // Firebase configuration and initialization
 import { initializeApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
+import { getAuth, setPersistence, browserLocalPersistence } from 'firebase/auth';
 import { getFirestore, enableNetwork, disableNetwork } from 'firebase/firestore';
 
 import { firebaseConfig } from './config/environment';
@@ -8,6 +8,14 @@ import { firebaseConfig } from './config/environment';
 const app = initializeApp(firebaseConfig);
 
 export const auth = getAuth(app);
+// Enable persistence for the auth state
+setPersistence(auth, browserLocalPersistence)
+  .then(() => {
+    console.log('Auth state persistence enabled');
+  })
+  .catch((error) => {
+    console.error('Error enabling auth persistence:', error);
+  });
 export const db = getFirestore(app);
 
 // Connection management functions
